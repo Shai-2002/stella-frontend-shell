@@ -90,3 +90,13 @@
     background: hsl(var(--stella-text-dim));
   }
 }
+
+/* Tighter line height for message names */
+.message-meta {
+  letter-spacing: -0.01em;
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}

@@ -17,7 +17,7 @@ export default function Topbar({ onClearChat, activeView, showMobileMenu, onMobi
         </button>
       )}
 
-      <span className="text-sm font-medium text-foreground tracking-tight">
+      <span className="text-[13px] font-semibold text-foreground tracking-tight">
         {activeView === 'chat' ? 'Stella' : 'Settings'}
       </span>
 

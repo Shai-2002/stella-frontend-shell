@@ -42,22 +42,22 @@ export default function MessageBubble({ message, onAction }: MessageBubbleProps)
       </div>
 
       {/* Content */}
-      <div className={`flex flex-col min-w-0 max-w-[calc(100%-52px)] ${!isStella ? 'items-end' : ''}`}>
+      <div className={`flex flex-col min-w-0 ${isStella ? '' : 'max-w-[85%] items-end'}`}>
         {/* Name + timestamp */}
-        <div className={`flex items-center gap-2 mb-2 ${!isStella ? 'flex-row-reverse' : ''}`}>
-          <span className="text-[13px] font-medium text-foreground">
+        <div className={`flex items-center gap-2 mb-2 message-meta ${!isStella ? 'flex-row-reverse' : ''}`}>
+          <span className="text-[13px] font-semibold text-foreground">
             {isStella ? 'Stella' : 'Shai'}
           </span>
-          <span className="text-[11px] font-mono text-stella-text-faint">{message.timestamp}</span>
+          <span className="text-[11px] font-mono text-stella-text-faint opacity-60">{message.timestamp}</span>
         </div>
 
         {/* Message body */}
         {message.content && (
           <div
-            className={`text-sm leading-[1.7] tracking-tight ${
+            className={`text-[14px] leading-[1.75] tracking-tight ${
               isStella
                 ? ''
-                : 'px-4 py-3 rounded-[16px_16px_4px_16px] bg-stella-terra-dim border border-stella-terra-border'
+                : 'px-4 py-3 rounded-[16px_16px_4px_16px] bg-stella-terra-dim border border-stella-terra-border max-w-[85%]'
             }`}
             style={{ color: '#d4d4cf' }}
           >

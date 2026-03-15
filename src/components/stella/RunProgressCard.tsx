@@ -190,7 +190,7 @@ export default function RunProgressCard({ pipelineType, stages: initialStages, r
           )}
 
           <span
-            className={`text-[13px] ${
+            className={`text-[13px] tracking-tight ${
               stage.status === 'active'
                 ? 'text-foreground'
                 : stage.status === 'completed'
@@ -202,7 +202,7 @@ export default function RunProgressCard({ pipelineType, stages: initialStages, r
           </span>
 
           {stage.elapsed && (
-            <span className="text-[11px] font-mono text-stella-text-faint ml-auto">
+            <span className="text-[11px] font-mono text-stella-text-dim ml-auto">
               {stage.elapsed}
             </span>
           )}

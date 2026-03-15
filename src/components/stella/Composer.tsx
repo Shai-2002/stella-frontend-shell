@@ -39,7 +39,7 @@ export default function Composer({ onSend }: ComposerProps) {
   return (
     <div className="px-6 pt-3 pb-4 flex-shrink-0">
       <div
-        className="flex items-end gap-2.5 rounded-2xl px-4 py-3"
+        className="flex items-end gap-2.5 rounded-[18px] px-4 py-3.5"
         style={{
           background: 'rgba(255,255,255,0.03)',
           border: '1px solid rgba(255,255,255,0.08)',
@@ -79,7 +79,7 @@ export default function Composer({ onSend }: ComposerProps) {
       </div>
 
       {/* Hint */}
-      <p className="text-center text-[11px] mt-2" style={{ color: '#3a3935' }}>
+      <p className="text-center text-[11px] mt-2 opacity-50" style={{ color: '#3a3935' }}>
         Enter to send · Shift+Enter for new line
       </p>
     </div>

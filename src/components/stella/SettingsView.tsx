@@ -1,10 +1,42 @@
-import { modelRoutes, ollamaModels, monthlyStats } from './mockData';
+import { useState, useEffect } from 'react';
+import { modelRoutes, ollamaModels as mockOllamaModels, monthlyStats as mockMonthlyStats } from './mockData';
+import { OllamaModel } from './types';
 import { Progress } from '@/components/ui/progress';
 
 export default function SettingsView() {
+  const [stats, setStats] = useState(mockMonthlyStats);
+  const [models, setModels] = useState<OllamaModel[]>(mockOllamaModels);
+
+  useEffect(() => {
+    fetch('/api/dashboard')
+      .then(r => r.json())
+      .then(data => {
+        setStats({
+          totalRuns: data.totalRuns,
+          totalCost: data.totalCost,
+          costLimit: data.costLimit,
+          costPercent: data.costPercent,
+          tokensUsed: data.tokensUsed,
+        });
+        if (data.ollamaModels?.length > 0) {
+          setModels(data.ollamaModels);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const totalModelSize = models.reduce((sum, m) => {
+    const match = m.size.match(/([\d.]+)(GB|MB|B)/);
+    if (!match) return sum;
+    const val = parseFloat(match[1]);
+    if (match[2] === 'GB') return sum + val;
+    if (match[2] === 'MB') return sum + val / 1000;
+    return sum;
+  }, 0);
+
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-[680px] mx-auto py-8 px-12 md:px-12 px-5 space-y-10">
+      <div className="max-w-[680px] mx-auto py-8 px-8 md:px-12 space-y-10">
         {/* Section 1: Active Models */}
         <section>
           <h2 className="text-[11px] uppercase tracking-widest text-stella-text-dim font-medium mb-4">
@@ -59,7 +91,7 @@ export default function SettingsView() {
               className="rounded-[10px] p-4"
               style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}
             >
-              <div className="text-2xl font-semibold text-foreground">{monthlyStats.totalRuns}</div>
+              <div className="text-2xl font-semibold text-foreground">{stats.totalRuns}</div>
               <div className="text-[11px] text-stella-text-dim mt-1">Total runs</div>
             </div>
 
@@ -69,10 +101,10 @@ export default function SettingsView() {
               style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}
             >
               <div className="text-2xl font-semibold text-foreground">
-                {monthlyStats.totalCost}{' '}
-                <span className="text-sm font-normal text-stella-text-dim">/ {monthlyStats.costLimit}</span>
+                {stats.totalCost}{' '}
+                <span className="text-sm font-normal text-stella-text-dim">/ {stats.costLimit}</span>
               </div>
-              <Progress value={monthlyStats.costPercent} className="h-1 mt-2 bg-stella-border" />
+              <Progress value={stats.costPercent} className="h-1 mt-2 bg-stella-border" />
               <div className="text-[11px] text-stella-text-dim mt-1">Total cost</div>
             </div>
 
@@ -81,7 +113,7 @@ export default function SettingsView() {
               className="rounded-[10px] p-4"
               style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}
             >
-              <div className="text-2xl font-semibold text-foreground">{monthlyStats.tokensUsed}</div>
+              <div className="text-2xl font-semibold text-foreground">{stats.tokensUsed}</div>
               <div className="text-[11px] text-stella-text-dim mt-1">Tokens used</div>
             </div>
           </div>
@@ -96,7 +128,7 @@ export default function SettingsView() {
             className="rounded-xl p-4 space-y-3"
             style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}
           >
-            {ollamaModels.map((model, i) => (
+            {models.map((model, i) => (
               <div key={i} className="flex items-center gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-stella-green animate-pulse-dot" />
                 <span className="text-[13px] text-foreground">{model.name}</span>
@@ -105,7 +137,7 @@ export default function SettingsView() {
             ))}
             <div className="pt-2 mt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
               <span className="text-[11px] text-stella-text-dim">
-                38.0 GB of models loaded · 32GB unified memory
+                {totalModelSize.toFixed(1)} GB of models loaded · 32GB unified memory
               </span>
             </div>
           </div>

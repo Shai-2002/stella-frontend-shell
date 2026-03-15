@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Sidebar from '@/components/stella/Sidebar';
 import ConversationHistory from '@/components/stella/ConversationHistory';
@@ -7,8 +7,20 @@ import ChatView from '@/components/stella/ChatView';
 import Composer from '@/components/stella/Composer';
 import SettingsView from '@/components/stella/SettingsView';
 import { mockMessages, mockConversations } from '@/components/stella/mockData';
-import { Message } from '@/components/stella/types';
+import { Message, Conversation } from '@/components/stella/types';
 import { useIsMobile } from '@/hooks/use-mobile';
+
+function generateId() {
+  return Math.random().toString(36).slice(2);
+}
+
+function saveToStorage(msgs: Message[], convId: string, convList: Conversation[]) {
+  const saved = JSON.parse(localStorage.getItem('stella_conversations') || '{}');
+  saved.messages = { ...(saved.messages || {}), [convId]: msgs };
+  saved.activeId = convId;
+  saved.conversations = convList;
+  localStorage.setItem('stella_conversations', JSON.stringify(saved));
+}
 
 const Index = () => {
   const isMobile = useIsMobile();
@@ -16,11 +28,27 @@ const Index = () => {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState('conv-1');
   const [messages, setMessages] = useState<Message[]>(mockMessages);
+  const [conversationList, setConversationList] = useState<Conversation[]>(mockConversations);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
 
+  // Load from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('stella_conversations');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.conversations?.length > 0) setConversationList(parsed.conversations);
+        if (parsed.activeId) {
+          setActiveConversationId(parsed.activeId);
+          const msgs = parsed.messages?.[parsed.activeId];
+          if (msgs?.length > 0) setMessages(msgs);
+        }
+      } catch {}
+    }
+  }, []);
+
   const handleSend = useCallback(async (text: string) => {
-    // 1. Append user message immediately (optimistic)
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -30,7 +58,6 @@ const Index = () => {
     setMessages((prev) => [...prev, userMsg]);
     setIsThinking(true);
 
-    // 2. POST to /api/chat with history (last 6 messages)
     try {
       const history = messages.slice(-6).map((m) => ({
         role: m.role === 'stella' ? 'assistant' : 'user',
@@ -47,7 +74,6 @@ const Index = () => {
       const runId = data.run_id || data.runId;
 
       if (runId) {
-        // Case B — pipeline triggered
         const stellaMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: 'stella',
@@ -63,16 +89,39 @@ const Index = () => {
           pipelineType: data.intent === 'BUILD' ? 'build' : 'research',
           runId,
         };
-        setMessages((prev) => [...prev, stellaMsg, runMsg]);
+        setMessages((prev) => {
+          const updated = [...prev, stellaMsg, runMsg];
+          setConversationList((prevConvs) => {
+            const updatedConvs = prevConvs.map((c) =>
+              c.id === activeConversationId && c.title === 'New chat'
+                ? { ...c, title: text.slice(0, 40), timestamp: 'just now' }
+                : c
+            );
+            saveToStorage(updated, activeConversationId, updatedConvs);
+            return updatedConvs;
+          });
+          return updated;
+        });
       } else {
-        // Case A — conversational response
         const stellaMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: 'stella',
           content: data.content,
           timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
         };
-        setMessages((prev) => [...prev, stellaMsg]);
+        setMessages((prev) => {
+          const updated = [...prev, stellaMsg];
+          setConversationList((prevConvs) => {
+            const updatedConvs = prevConvs.map((c) =>
+              c.id === activeConversationId && c.title === 'New chat'
+                ? { ...c, title: text.slice(0, 40), timestamp: 'just now' }
+                : c
+            );
+            saveToStorage(updated, activeConversationId, updatedConvs);
+            return updatedConvs;
+          });
+          return updated;
+        });
       }
     } catch (err) {
       console.error('[handleSend] error:', err);
@@ -86,7 +135,7 @@ const Index = () => {
     } finally {
       setIsThinking(false);
     }
-  }, [messages]);
+  }, [messages, activeConversationId]);
 
   const handleClearChat = useCallback(() => {
     setMessages([
@@ -100,7 +149,6 @@ const Index = () => {
   }, []);
 
   const handleAction = useCallback(async (action: 'research' | 'build' | 'both') => {
-    // Remove showActions from all previous messages
     setMessages((prev) => prev.map((m) => ({ ...m, showActions: false })));
 
     try {
@@ -136,7 +184,11 @@ const Index = () => {
         runId,
       };
 
-      setMessages((prev) => [...prev, confirmMsg, ...(runId ? [runMsg] : [])]);
+      setMessages((prev) => {
+        const updated = [...prev, confirmMsg, ...(runId ? [runMsg] : [])];
+        saveToStorage(updated, activeConversationId, conversationList);
+        return updated;
+      });
     } catch (err) {
       console.error('[handleAction] error:', err);
       setMessages((prev) => [...prev, {
@@ -146,16 +198,51 @@ const Index = () => {
         timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
       }]);
     }
-  }, []);
+  }, [activeConversationId, conversationList]);
 
   const handleNewChat = useCallback(() => {
-    handleClearChat();
+    const newId = generateId();
+    const newConv: Conversation = {
+      id: newId,
+      title: 'New chat',
+      timestamp: 'just now',
+    };
+    const initialMsg: Message[] = [{
+      id: Date.now().toString(),
+      role: 'stella',
+      content: 'New chat started. What are we working on?',
+      timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+    }];
+    setActiveConversationId(newId);
+    setConversationList((prev) => {
+      const updated = [newConv, ...prev];
+      saveToStorage(initialMsg, newId, updated);
+      return updated;
+    });
+    setMessages(initialMsg);
     setHistoryOpen(false);
-  }, [handleClearChat]);
+  }, []);
 
   const handleSelectConversation = useCallback((id: string) => {
     setActiveConversationId(id);
     setHistoryOpen(false);
+    const saved = localStorage.getItem('stella_conversations');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const msgs = parsed.messages?.[id];
+        if (msgs?.length > 0) {
+          setMessages(msgs);
+          return;
+        }
+      } catch {}
+    }
+    setMessages([{
+      id: Date.now().toString(),
+      role: 'stella',
+      content: 'What are we working on?',
+      timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+    }]);
   }, []);
 
   const handleViewChange = useCallback((view: 'chat' | 'settings') => {
@@ -166,7 +253,6 @@ const Index = () => {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
-      {/* Sidebar — desktop always visible, mobile overlay */}
       {isMobile ? (
         <AnimatePresence>
           {mobileSidebarOpen && (
@@ -203,17 +289,15 @@ const Index = () => {
         />
       )}
 
-      {/* Conversation history drawer */}
       <ConversationHistory
         open={historyOpen}
-        conversations={mockConversations}
+        conversations={conversationList}
         activeId={activeConversationId}
         onSelect={handleSelectConversation}
         onNewChat={handleNewChat}
         onClose={() => setHistoryOpen(false)}
       />
 
-      {/* Main area */}
       <div className="flex flex-col flex-1 min-w-0" style={{ marginLeft: isMobile ? 0 : '52px' }}>
         <Topbar
           onClearChat={handleClearChat}

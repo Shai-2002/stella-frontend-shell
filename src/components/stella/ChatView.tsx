@@ -18,7 +18,7 @@ export default function ChatView({ messages, onAction, isThinking }: ChatViewPro
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-[680px] mx-auto py-10 px-12 md:px-12 px-5 flex flex-col gap-8">
+      <div className="max-w-[700px] mx-auto py-10 px-8 md:px-12 pb-4 flex flex-col gap-8">
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} onAction={onAction} />
         ))}
