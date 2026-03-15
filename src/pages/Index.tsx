@@ -17,22 +17,76 @@ const Index = () => {
   const [activeConversationId, setActiveConversationId] = useState('conv-1');
   const [messages, setMessages] = useState<Message[]>(mockMessages);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
 
-  const handleSend = useCallback((text: string) => {
+  const handleSend = useCallback(async (text: string) => {
+    // 1. Append user message immediately (optimistic)
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: text,
       timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
     };
-    const stellaReply: Message = {
-      id: (Date.now() + 1).toString(),
-      role: 'stella',
-      content: "I'll look into that. Give me a moment to think through the best approach.",
-      timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-    };
-    setMessages((prev) => [...prev, userMsg, stellaReply]);
-  }, []);
+    setMessages((prev) => [...prev, userMsg]);
+    setIsThinking(true);
+
+    // 2. POST to /api/chat with history (last 6 messages)
+    try {
+      const history = messages.slice(-6).map((m) => ({
+        role: m.role === 'stella' ? 'assistant' : 'user',
+        content: m.content,
+      }));
+
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, history }),
+      });
+      const data = await res.json();
+
+      const runId = data.run_id || data.runId;
+
+      if (runId) {
+        // Case B — pipeline triggered
+        const stellaMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'stella',
+          content: data.content,
+          timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        };
+        const runMsg: Message = {
+          id: (Date.now() + 2).toString(),
+          role: 'stella',
+          content: '',
+          timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+          showRunCard: true,
+          pipelineType: data.intent === 'BUILD' ? 'build' : 'research',
+          runId,
+        };
+        setMessages((prev) => [...prev, stellaMsg, runMsg]);
+      } else {
+        // Case A — conversational response
+        const stellaMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'stella',
+          content: data.content,
+          timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        };
+        setMessages((prev) => [...prev, stellaMsg]);
+      }
+    } catch (err) {
+      console.error('[handleSend] error:', err);
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'stella',
+        content: 'Something went wrong. Check the console.',
+        timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsThinking(false);
+    }
+  }, [messages]);
 
   const handleClearChat = useCallback(() => {
     setMessages([
@@ -45,20 +99,53 @@ const Index = () => {
     ]);
   }, []);
 
-  const handleAction = useCallback((action: 'research' | 'build' | 'both') => {
-    const runMsg: Message = {
-      id: Date.now().toString(),
-      role: 'stella',
-      content: '',
-      timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-      showRunCard: true,
-      pipelineType: action === 'build' ? 'build' : 'research',
-    };
-    setMessages((prev) => {
-      // Remove showActions from previous messages
-      const updated = prev.map((m) => ({ ...m, showActions: false }));
-      return [...updated, runMsg];
-    });
+  const handleAction = useCallback(async (action: 'research' | 'build' | 'both') => {
+    // Remove showActions from all previous messages
+    setMessages((prev) => prev.map((m) => ({ ...m, showActions: false })));
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: `__action:${action}`,
+          history: [],
+          confirmedIntent: action === 'build' ? 'BUILD' : 'RESEARCH',
+          confirmedMode: action,
+        }),
+      });
+
+      const data = await res.json();
+      const runId = data.run_id || data.runId;
+      const ts = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+      const confirmMsg: Message = {
+        id: Date.now().toString(),
+        role: 'stella',
+        content: data.content || `Starting ${action} run.`,
+        timestamp: ts,
+      };
+
+      const runMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'stella',
+        content: '',
+        timestamp: ts,
+        showRunCard: true,
+        pipelineType: action === 'build' ? 'build' : 'research',
+        runId,
+      };
+
+      setMessages((prev) => [...prev, confirmMsg, ...(runId ? [runMsg] : [])]);
+    } catch (err) {
+      console.error('[handleAction] error:', err);
+      setMessages((prev) => [...prev, {
+        id: Date.now().toString(),
+        role: 'stella',
+        content: 'Failed to start the pipeline. Check the console.',
+        timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+      }]);
+    }
   }, []);
 
   const handleNewChat = useCallback(() => {
@@ -137,7 +224,7 @@ const Index = () => {
 
         {activeView === 'chat' ? (
           <>
-            <ChatView messages={messages} onAction={handleAction} />
+            <ChatView messages={messages} onAction={handleAction} isThinking={isThinking} />
             <Composer onSend={handleSend} />
           </>
         ) : (

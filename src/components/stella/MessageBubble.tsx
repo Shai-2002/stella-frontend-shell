@@ -29,7 +29,7 @@ export default function MessageBubble({ message, onAction }: MessageBubbleProps)
     >
       {/* Avatar */}
       <div
-        className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+        className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-1 ${
           isStella ? 'bg-primary' : ''
         }`}
         style={!isStella ? { backgroundColor: 'rgba(255,255,255,0.08)' } : undefined}
@@ -44,7 +44,7 @@ export default function MessageBubble({ message, onAction }: MessageBubbleProps)
       {/* Content */}
       <div className={`flex flex-col min-w-0 max-w-[calc(100%-52px)] ${!isStella ? 'items-end' : ''}`}>
         {/* Name + timestamp */}
-        <div className={`flex items-center gap-2 mb-1.5 ${!isStella ? 'flex-row-reverse' : ''}`}>
+        <div className={`flex items-center gap-2 mb-2 ${!isStella ? 'flex-row-reverse' : ''}`}>
           <span className="text-[13px] font-medium text-foreground">
             {isStella ? 'Stella' : 'Shai'}
           </span>
@@ -90,6 +90,7 @@ export default function MessageBubble({ message, onAction }: MessageBubbleProps)
           <RunProgressCard
             pipelineType={message.pipelineType}
             stages={message.pipelineType === 'research' ? researchStages : buildStages}
+            runId={message.runId}
           />
         )}
       </div>
