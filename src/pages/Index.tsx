@@ -165,6 +165,7 @@ const Index = () => {
 
       const data = await res.json();
       const runId = data.run_id || data.runId;
+      const buildRunId = data.build_run_id;
       const ts = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
       const confirmMsg: Message = {
@@ -174,18 +175,34 @@ const Index = () => {
         timestamp: ts,
       };
 
-      const runMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'stella',
-        content: '',
-        timestamp: ts,
-        showRunCard: true,
-        pipelineType: action === 'build' ? 'build' : 'research',
-        runId,
-      };
+      const newMessages: Message[] = [confirmMsg];
+
+      if (runId) {
+        newMessages.push({
+          id: (Date.now() + 1).toString(),
+          role: 'stella',
+          content: '',
+          timestamp: ts,
+          showRunCard: true,
+          pipelineType: buildRunId ? 'research' : (action === 'build' ? 'build' : 'research'),
+          runId,
+        });
+      }
+
+      if (buildRunId) {
+        newMessages.push({
+          id: (Date.now() + 2).toString(),
+          role: 'stella',
+          content: '',
+          timestamp: ts,
+          showRunCard: true,
+          pipelineType: 'build',
+          runId: buildRunId,
+        });
+      }
 
       setMessages((prev) => {
-        const updated = [...prev, confirmMsg, ...(runId ? [runMsg] : [])];
+        const updated = [...prev, ...newMessages];
         saveToStorage(updated, activeConversationId, conversationList);
         return updated;
       });
