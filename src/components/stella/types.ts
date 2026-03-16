@@ -22,7 +22,23 @@ export interface Conversation {
 export interface Project {
   id: string;
   name: string;
+  description?: string | null;
+  instructions?: string | null;
   created_at: string;
+  updated_at?: string;
+  conversation_count?: number;
+  file_count?: number;
+}
+
+export interface ProjectFile {
+  id: string;
+  original_name: string;
+  file_type: string;
+  status: string;
+  chunk_count?: number;
+  summary?: string;
+  scope: 'chat' | 'project';
+  uploaded_at: string;
 }
 
 export interface PipelineStage {

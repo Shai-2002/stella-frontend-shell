@@ -5,6 +5,7 @@ import Topbar from '@/components/stella/Topbar';
 import ChatView from '@/components/stella/ChatView';
 import Composer from '@/components/stella/Composer';
 import SettingsView from '@/components/stella/SettingsView';
+import ProjectWorkspace from '@/components/stella/ProjectWorkspace';
 import { Message, Conversation, Project } from '@/components/stella/types';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -51,6 +52,7 @@ const Index = () => {
   const isMobile = useIsMobile();
   const [activeView, setActiveView] = useState<'chat' | 'settings'>('chat');
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversationList, setConversationList] = useState<Conversation[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -112,7 +114,7 @@ const Index = () => {
     }
   }
 
-  async function ensureConversation(): Promise<string> {
+  async function ensureConversation(projectId?: string): Promise<string> {
     if (activeConvRef.current) return activeConvRef.current;
     try {
       const res = await fetch(`${API}/conversations`, { method: 'POST' });
@@ -122,7 +124,12 @@ const Index = () => {
         title: conv.title,
         timestamp: 'just now',
         updated_at: new Date().toISOString(),
+        project_id: projectId ?? undefined,
       };
+      // If creating inside a project, assign project_id
+      if (projectId) {
+        patchConversation(conv.id, { project_id: projectId });
+      }
       activeConvRef.current = conv.id;
       setActiveConversationId(conv.id);
       setConversationList((prev) => [newConv, ...prev]);
@@ -134,7 +141,7 @@ const Index = () => {
   }
 
   const handleSend = useCallback(async (text: string) => {
-    const convId = await ensureConversation();
+    const convId = await ensureConversation(activeProject?.id);
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -165,7 +172,7 @@ const Index = () => {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history }),
+        body: JSON.stringify({ message: text, history, conversation_id: convId || undefined }),
       });
       const data = await res.json();
       const runId = data.run_id || data.runId;
@@ -192,7 +199,7 @@ const Index = () => {
     } finally {
       setIsThinking(false);
     }
-  }, [messages]);
+  }, [messages, activeProject]);
 
   const handleClearChat = useCallback(async () => {
     activeConvRef.current = null;
@@ -239,6 +246,7 @@ const Index = () => {
   const handleNewChat = useCallback(async () => {
     activeConvRef.current = null;
     setActiveConversationId(null);
+    setActiveProject(null);
     isFirstUserMsg.current = true;
     setMessages([]);
     setActiveView('chat');
@@ -263,6 +271,17 @@ const Index = () => {
     } catch {}
   }, []);
 
+  const handleOpenProject = useCallback((projectId: string) => {
+    const proj = projects.find(p => p.id === projectId);
+    if (proj) {
+      setActiveProject(proj);
+      setActiveConversationId(null);
+      activeConvRef.current = null;
+      setMessages([]);
+      isFirstUserMsg.current = true;
+    }
+  }, [projects]);
+
   const handleMoveToProject = useCallback(async (convId: string, projectId: string | null) => {
     await patchConversation(convId, { project_id: projectId });
     setConversationList((prev) =>
@@ -284,8 +303,54 @@ const Index = () => {
 
   const handleViewChange = useCallback((view: 'chat' | 'settings') => {
     setActiveView(view);
+    setActiveProject(null);
     if (isMobile) setMobileSidebarOpen(false);
   }, [isMobile]);
+
+  const handleDocumentUploaded = useCallback((id: string, filename: string, msg: string) => {
+    const uploadMsg: Message = {
+      id: Date.now().toString(), role: 'stella',
+      content: `Got "${filename}". ${msg}\n\nOnce indexed, you can ask me to validate it, summarize it, research more around it, or build from it.`,
+      timestamp: nowTimestamp(),
+    };
+    setMessages(prev => [...prev, uploadMsg]);
+    const convId = activeConvRef.current;
+    if (convId) saveMessageToDb(convId, 'stella', uploadMsg.content, { document_id: id });
+  }, []);
+
+  const handleNewChatInProject = useCallback(async () => {
+    activeConvRef.current = null;
+    setActiveConversationId(null);
+    isFirstUserMsg.current = true;
+    setMessages([]);
+  }, []);
+
+  const handleProjectUpdated = useCallback((updated: Project) => {
+    setProjects(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
+    if (activeProject?.id === updated.id) setActiveProject({ ...activeProject, ...updated });
+  }, [activeProject]);
+
+  // If a project is active, render ProjectWorkspace
+  if (activeProject) {
+    return (
+      <div className="flex h-screen w-full overflow-hidden bg-background">
+        <ProjectWorkspace
+          project={activeProject}
+          conversations={conversationList}
+          activeConversationId={activeConversationId}
+          messages={messages}
+          isThinking={isThinking}
+          onBack={() => { setActiveProject(null); }}
+          onSelectConversation={handleSelectConversation}
+          onNewChatInProject={handleNewChatInProject}
+          onSend={handleSend}
+          onAction={handleAction}
+          onDocumentUploaded={handleDocumentUploaded}
+          onProjectUpdated={handleProjectUpdated}
+        />
+      </div>
+    );
+  }
 
   const sidebarPanel = (
     <ConversationHistory
@@ -299,6 +364,7 @@ const Index = () => {
       onMoveToProject={handleMoveToProject}
       onDeleteConversation={handleDeleteConversation}
       onViewChange={handleViewChange}
+      onOpenProject={handleOpenProject}
     />
   );
 
@@ -343,16 +409,7 @@ const Index = () => {
             <ChatView messages={messages} onAction={handleAction} isThinking={isThinking} />
             <Composer
               onSend={handleSend}
-              onDocumentUploaded={(id, filename, msg) => {
-                const uploadMsg: Message = {
-                  id: Date.now().toString(), role: 'stella',
-                  content: `Got "${filename}". ${msg}\n\nOnce indexed, you can ask me to validate it, summarize it, research more around it, or build from it.`,
-                  timestamp: nowTimestamp(),
-                };
-                setMessages(prev => [...prev, uploadMsg]);
-                const convId = activeConvRef.current;
-                if (convId) saveMessageToDb(convId, 'stella', uploadMsg.content, { document_id: id });
-              }}
+              onDocumentUploaded={handleDocumentUploaded}
             />
           </>
         ) : (

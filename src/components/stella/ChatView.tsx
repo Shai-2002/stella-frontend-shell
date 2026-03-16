@@ -28,9 +28,9 @@ export default function ChatView({ messages, onAction, isThinking }: ChatViewPro
     >
       {/* Inner width constraint — Claude.ai style centered column */}
       <div style={{
-        maxWidth: '680px',
+        maxWidth: '860px',
         margin: '0 auto',
-        padding: '0 1.5rem',
+        padding: '0 2rem',
       }}>
         {messages.map((msg, i) => (
           <MessageBubble

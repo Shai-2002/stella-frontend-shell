@@ -13,6 +13,7 @@ interface ConversationHistoryProps {
   onMoveToProject: (convId: string, projectId: string | null) => void;
   onDeleteConversation: (id: string) => void;
   onViewChange: (view: 'chat' | 'settings') => void;
+  onOpenProject?: (projectId: string) => void;
 }
 
 function isToday(d: Date): boolean {
@@ -102,7 +103,7 @@ function ConvMenu({ convId, projects, onMove, onDelete, onClose }: {
 
 export default function ConversationHistory({
   conversations, projects, activeId, activeView,
-  onSelect, onNewChat, onCreateProject, onMoveToProject, onDeleteConversation, onViewChange,
+  onSelect, onNewChat, onCreateProject, onMoveToProject, onDeleteConversation, onViewChange, onOpenProject,
 }: ConversationHistoryProps) {
   const [search, setSearch] = useState('');
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
@@ -239,7 +240,7 @@ export default function ConversationHistory({
             const pConvs = projectConvs.get(p.id) || [];
             return (
               <div key={p.id}>
-                <button onClick={() => toggleProject(p.id)} style={{
+                <button onClick={() => onOpenProject ? onOpenProject(p.id) : toggleProject(p.id)} style={{
                   display: 'flex', alignItems: 'center', gap: 6, width: '100%',
                   padding: '7px 8px', borderRadius: 8, background: 'transparent',
                   border: 'none', cursor: 'pointer', transition: 'background 0.15s',
