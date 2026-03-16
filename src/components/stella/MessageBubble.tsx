@@ -104,28 +104,55 @@ export default function MessageBubble({ message, onAction, isLatest = false }: M
         variants={stellaVariants}
         style={{ alignItems: 'flex-start', marginBottom: 'var(--space-message)' }}
       >
-        {/* Stella avatar — terra dot with subtle glow */}
+        {/* Stella avatar — large terra circle with S + status indicator */}
         <div style={{
           flexShrink: 0,
-          width: 28,
-          height: 28,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle at 35% 35%, rgba(218,119,86,0.9), rgba(180,80,50,0.8))',
-          boxShadow: isLatest ? '0 0 12px rgba(218,119,86,0.4)' : '0 0 0 rgba(218,119,86,0)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          width: 40,
+          height: 40,
+          position: 'relative',
           marginTop: '2px',
-          transition: 'box-shadow 0.5s ease',
-          border: '1px solid rgba(218,119,86,0.3)'
         }}>
-          <span style={{
-            fontSize: 11,
-            fontWeight: 700,
-            color: 'white',
-            letterSpacing: '-0.02em',
-            fontFamily: 'var(--font-display)'
-          }}>S</span>
+          <div style={{
+            width: 40,
+            height: 40,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #e08860 0%, #da7756 50%, #c4623f 100%)',
+            boxShadow: isLatest ? '0 0 16px rgba(218,119,86,0.5)' : '0 2px 8px rgba(0,0,0,0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'box-shadow 0.5s ease',
+          }}>
+            <span style={{
+              fontSize: 16,
+              fontWeight: 700,
+              color: 'white',
+              letterSpacing: '-0.02em',
+              fontFamily: 'var(--font-display)',
+            }}>S</span>
+          </div>
+          {/* Status + indicator */}
+          <div style={{
+            position: 'absolute',
+            bottom: -1,
+            right: -1,
+            width: 14,
+            height: 14,
+            borderRadius: '50%',
+            background: '#2b2a27',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '2px solid #2b2a27',
+          }}>
+            <div style={{
+              width: 10,
+              height: 10,
+              borderRadius: '50%',
+              background: 'var(--color-cl-green)',
+              boxShadow: '0 0 6px rgba(74,222,128,0.5)',
+            }} />
+          </div>
         </div>
 
         {/* Message body */}
@@ -156,11 +183,12 @@ export default function MessageBubble({ message, onAction, isLatest = false }: M
           {/* Content */}
           {message.content && (
             <div style={{
-              fontSize: 14,
-              lineHeight: 1.7,
+              fontSize: 15,
+              lineHeight: 1.75,
               color: 'var(--color-cl-text)',
               fontFamily: 'var(--font-display)',
               fontWeight: 400,
+              letterSpacing: '0.01em',
             }}>
               {renderContent(message.content)}
             </div>
@@ -223,18 +251,18 @@ export default function MessageBubble({ message, onAction, isLatest = false }: M
 
         {/* Bubble */}
         <div style={{
-          background: 'var(--user-bubble-bg)',
-          border: '1px solid var(--user-bubble-border)',
-          borderRadius: '16px 4px 16px 16px',
-          padding: '0.7rem 1rem',
-          fontSize: 14,
-          lineHeight: 1.65,
+          background: '#3a2820',
+          border: '1px solid rgba(218,119,86,0.15)',
+          borderRadius: '20px 6px 20px 20px',
+          padding: '0.75rem 1.15rem',
+          fontSize: 15,
+          lineHeight: 1.7,
           color: 'var(--color-cl-text)',
           fontFamily: 'var(--font-display)',
           fontWeight: 400,
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
-          backdropFilter: 'blur(4px)',
+          letterSpacing: '0.01em',
         }}>
           {message.content}
         </div>

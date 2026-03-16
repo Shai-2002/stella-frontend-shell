@@ -15,6 +15,14 @@ export interface Conversation {
   id: string;
   title: string;
   timestamp: string;
+  project_id?: string | null;
+  updated_at?: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  created_at: string;
 }
 
 export interface PipelineStage {
