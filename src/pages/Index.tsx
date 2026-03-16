@@ -80,22 +80,12 @@ const Index = () => {
           setActiveConversationId(convs[0].id);
           loadConversation(convs[0].id);
         } else {
-          // No conversations yet — show welcome
-          setMessages([{
-            id: Date.now().toString(),
-            role: 'stella',
-            content: 'Good morning, Shai. What are we working on today?',
-            timestamp: nowTimestamp(),
-          }]);
+          // No conversations yet — empty screen, just composer
+          setMessages([]);
         }
       })
       .catch(() => {
-        setMessages([{
-          id: Date.now().toString(),
-          role: 'stella',
-          content: 'Good morning, Shai. What are we working on today?',
-          timestamp: nowTimestamp(),
-        }]);
+        setMessages([]);
       });
   }, []);
 
@@ -115,21 +105,11 @@ const Index = () => {
         );
         isFirstUserMsg.current = !data.messages.some((m: { role: string }) => m.role === 'user');
       } else {
-        setMessages([{
-          id: Date.now().toString(),
-          role: 'stella',
-          content: 'What are we working on?',
-          timestamp: nowTimestamp(),
-        }]);
+        setMessages([]);
         isFirstUserMsg.current = true;
       }
     } catch {
-      setMessages([{
-        id: Date.now().toString(),
-        role: 'stella',
-        content: 'What are we working on?',
-        timestamp: nowTimestamp(),
-      }]);
+      setMessages([]);
       isFirstUserMsg.current = true;
     }
   }
@@ -239,16 +219,10 @@ const Index = () => {
   }, [messages]);
 
   const handleClearChat = useCallback(async () => {
-    // Create a new conversation for the clear
-    const res = await fetch(`${API}/conversations`, { method: 'POST' }).catch(() => null);
-    if (res) {
-      const conv = await res.json();
-      const newConv: Conversation = { id: conv.id, title: conv.title, timestamp: 'just now' };
-      activeConvRef.current = conv.id;
-      setActiveConversationId(conv.id);
-      setConversationList((prev) => [newConv, ...prev]);
-      isFirstUserMsg.current = true;
-    }
+    // Lazy — don't create DB conversation until first message
+    activeConvRef.current = null;
+    setActiveConversationId(null);
+    isFirstUserMsg.current = true;
     setMessages([{
       id: Date.now().toString(),
       role: 'stella',
@@ -324,21 +298,11 @@ const Index = () => {
   }, []);
 
   const handleNewChat = useCallback(async () => {
-    try {
-      const res = await fetch(`${API}/conversations`, { method: 'POST' });
-      const conv = await res.json();
-      const newConv: Conversation = { id: conv.id, title: conv.title, timestamp: 'just now' };
-      activeConvRef.current = conv.id;
-      setActiveConversationId(conv.id);
-      setConversationList((prev) => [newConv, ...prev]);
-      isFirstUserMsg.current = true;
-      setMessages([{
-        id: Date.now().toString(),
-        role: 'stella',
-        content: randomClearMessage(),
-        timestamp: nowTimestamp(),
-      }]);
-    } catch {}
+    // Lazy — don't create DB conversation until first message
+    activeConvRef.current = null;
+    setActiveConversationId(null);
+    isFirstUserMsg.current = true;
+    setMessages([]);
   }, []);
 
   const handleSelectConversation = useCallback((id: string) => {
