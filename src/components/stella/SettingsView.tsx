@@ -3,9 +3,22 @@ import { modelRoutes, ollamaModels as mockOllamaModels, monthlyStats as mockMont
 import { OllamaModel } from './types';
 import { Progress } from '@/components/ui/progress';
 
+interface PersonalityData {
+  preferences: { category: string; key: string; value: string; confidence: number; evidence_count: number }[];
+  currentSnapshot: {
+    version: number;
+    tone_profile: Record<string, number>;
+    active_adaptations: string[];
+    created_at: string;
+  } | null;
+  recentActivity: { total: string; date: string }[];
+  totalEpisodes: string;
+}
+
 export default function SettingsView() {
   const [stats, setStats] = useState(mockMonthlyStats);
   const [models, setModels] = useState<OllamaModel[]>(mockOllamaModels);
+  const [personalityData, setPersonalityData] = useState<PersonalityData | null>(null);
 
   useEffect(() => {
     fetch('/api/dashboard')
@@ -22,6 +35,11 @@ export default function SettingsView() {
           setModels(data.ollamaModels);
         }
       })
+      .catch(() => {});
+
+    fetch('/api/personality')
+      .then(r => r.json())
+      .then(setPersonalityData)
       .catch(() => {});
   }, []);
 
@@ -141,6 +159,79 @@ export default function SettingsView() {
               </span>
             </div>
           </div>
+        </section>
+
+        {/* Section 4: Personality & Learning */}
+        <section>
+          <h2 style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'var(--color-cl-text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            marginBottom: '1rem',
+            fontFamily: 'var(--font-display)'
+          }}>
+            Personality & Learning
+          </h2>
+
+          {personalityData?.currentSnapshot && (
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontSize: 11, color: 'var(--color-cl-text-muted)', marginBottom: '0.5rem' }}>
+                Tone Profile (v{personalityData.currentSnapshot.version})
+              </div>
+              {Object.entries(personalityData.currentSnapshot.tone_profile).map(([key, val]) => (
+                <div key={key} style={{ marginBottom: '0.375rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                    <span style={{ fontSize: 11, color: 'var(--color-cl-text)', textTransform: 'capitalize', fontFamily: 'var(--font-display)' }}>{key}</span>
+                    <span style={{ fontSize: 11, color: 'var(--color-cl-terra)', fontFamily: 'var(--font-display)' }}>{Math.round(val * 100)}%</span>
+                  </div>
+                  <div style={{ height: 2, background: 'var(--color-cl-border)', borderRadius: 1 }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${val * 100}%`,
+                      background: 'var(--color-cl-terra)',
+                      borderRadius: 1,
+                      transition: 'width 0.5s ease'
+                    }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Preference facts count */}
+          <div style={{
+            fontSize: 11,
+            color: 'var(--color-cl-text-muted)',
+            fontFamily: 'var(--font-display)'
+          }}>
+            {personalityData?.preferences?.length || 0} preference facts learned
+            {personalityData?.totalEpisodes && ` · ${personalityData.totalEpisodes} total episodes`}
+          </div>
+
+          {/* Recompute button */}
+          <button
+            onClick={() => {
+              fetch('/api/personality/recompute', { method: 'POST' })
+                .then(() => fetch('/api/personality').then(r => r.json()).then(setPersonalityData))
+                .catch(() => {});
+            }}
+            style={{
+              marginTop: '0.75rem',
+              padding: '5px 12px',
+              fontSize: 11,
+              fontFamily: 'var(--font-display)',
+              fontWeight: 500,
+              color: 'var(--color-cl-terra)',
+              background: 'rgba(218,119,86,0.08)',
+              border: '1px solid rgba(218,119,86,0.2)',
+              borderRadius: 6,
+              cursor: 'pointer',
+            }}
+          >
+            Recompute Tone Profile
+          </button>
         </section>
       </div>
     </div>

@@ -52,13 +52,7 @@ export const buildStages: PipelineStage[] = [
   { name: 'Export', status: 'pending' },
 ];
 
-export const mockConversations: Conversation[] = [
-  { id: 'conv-1', title: 'AI & Smart Fabrics Research', timestamp: '2 min ago' },
-  { id: 'conv-2', title: 'Chennai Startup Ecosystem', timestamp: 'Yesterday' },
-  { id: 'conv-3', title: 'Voice Interface Architecture', timestamp: '2 days ago' },
-  { id: 'conv-4', title: 'Stella Memory System Design', timestamp: 'Mar 12' },
-  { id: 'conv-5', title: 'Weekly Review & Planning', timestamp: 'Mar 10' },
-];
+export const mockConversations: Conversation[] = [];
 
 export const modelRoutes: ModelRoute[] = [
   { stage: 'Conversational', model: 'claude-sonnet-4-5', type: 'Cloud' },

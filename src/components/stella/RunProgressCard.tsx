@@ -154,14 +154,30 @@ export default function RunProgressCard({ pipelineType, stages: initialStages, r
     fetchOutputs(runId).then(setOutputs);
   }, [runId, runStatus, outputs]);
 
+  const isComplete = runStatus === 'completed';
+
   return (
     <div
-      className="rounded-xl p-3.5 flex flex-col gap-2.5 mt-1"
+      className="rounded-xl flex flex-col mt-1"
       style={{
-        background: 'rgba(255,255,255,0.02)',
-        border: '1px solid rgba(255,255,255,0.06)',
+        background: 'var(--color-cl-surface)',
+        border: '1px solid var(--color-cl-border)',
+        borderRadius: '12px',
+        overflow: 'hidden',
+        marginTop: '0.75rem',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
       }}
     >
+      {/* Terra/green accent bar at top */}
+      <div style={{
+        height: '2px',
+        background: isComplete
+          ? 'linear-gradient(90deg, var(--color-cl-green) 0%, rgba(74,222,128,0.3) 100%)'
+          : 'linear-gradient(90deg, var(--color-cl-terra) 0%, rgba(218,119,86,0.3) 100%)',
+        transition: 'background 0.5s ease',
+      }} />
+
+      <div className="p-3.5 flex flex-col gap-2.5">
       {/* Pipeline badge */}
       <div className="flex items-center gap-2 mb-0.5">
         <span
@@ -177,7 +193,13 @@ export default function RunProgressCard({ pipelineType, stages: initialStages, r
 
       {/* Stages */}
       {stages.map((stage, i) => (
-        <div key={i} className="flex items-center gap-2.5">
+        <div key={i} className="flex items-center gap-2.5"
+          style={{
+            padding: '0.25rem 0.5rem',
+            borderLeft: stage.status === 'active' ? '2px solid var(--color-cl-terra)' : '2px solid transparent',
+            transition: 'border-color 0.2s ease',
+          }}
+        >
           {stage.status === 'completed' && <StarIcon />}
           {stage.status === 'active' && (
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse-dot" />
@@ -268,6 +290,7 @@ export default function RunProgressCard({ pipelineType, stages: initialStages, r
           <span className="text-[13px] text-destructive">✗ Run failed</span>
         </div>
       )}
+      </div>
     </div>
   );
 }

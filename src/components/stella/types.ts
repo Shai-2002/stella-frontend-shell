@@ -7,6 +7,8 @@ export interface Message {
   showRunCard?: boolean;
   pipelineType?: 'research' | 'build';
   runId?: string;
+  showChainCard?: boolean;
+  chainId?: string;
 }
 
 export interface Conversation {

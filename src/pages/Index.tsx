@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Sidebar from '@/components/stella/Sidebar';
 import ConversationHistory from '@/components/stella/ConversationHistory';
@@ -6,57 +6,178 @@ import Topbar from '@/components/stella/Topbar';
 import ChatView from '@/components/stella/ChatView';
 import Composer from '@/components/stella/Composer';
 import SettingsView from '@/components/stella/SettingsView';
-import { mockMessages, mockConversations } from '@/components/stella/mockData';
 import { Message, Conversation } from '@/components/stella/types';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-function generateId() {
-  return Math.random().toString(36).slice(2);
+const API = '/api';
+
+const CLEAR_MESSAGES = [
+  "Cleared. What are we doing?",
+  "Clean slate.",
+  "Fresh start — go.",
+  "Cleared. Pick up where we left off or start something new?",
+  "Wiped. What's next?",
+  "Gone. Start fresh.",
+];
+
+function randomClearMessage(): string {
+  return CLEAR_MESSAGES[Math.floor(Math.random() * CLEAR_MESSAGES.length)];
 }
 
-function saveToStorage(msgs: Message[], convId: string, convList: Conversation[]) {
-  const saved = JSON.parse(localStorage.getItem('stella_conversations') || '{}');
-  saved.messages = { ...(saved.messages || {}), [convId]: msgs };
-  saved.activeId = convId;
-  saved.conversations = convList;
-  localStorage.setItem('stella_conversations', JSON.stringify(saved));
+function nowTimestamp(): string {
+  return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+async function saveMessageToDb(convId: string, role: string, content: string, metadata?: Record<string, unknown>) {
+  try {
+    await fetch(`${API}/conversations/${convId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role, content, metadata: metadata ?? null }),
+    });
+  } catch {}
+}
+
+async function patchTitle(convId: string, title: string) {
+  try {
+    await fetch(`${API}/conversations/${convId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    });
+  } catch {}
 }
 
 const Index = () => {
   const isMobile = useIsMobile();
   const [activeView, setActiveView] = useState<'chat' | 'settings'>('chat');
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [activeConversationId, setActiveConversationId] = useState('conv-1');
-  const [messages, setMessages] = useState<Message[]>(mockMessages);
-  const [conversationList, setConversationList] = useState<Conversation[]>(mockConversations);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [conversationList, setConversationList] = useState<Conversation[]>([]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
+  const isFirstUserMsg = useRef(true);
+  const activeConvRef = useRef<string | null>(null);
 
-  // Load from localStorage on mount
+  // Keep ref in sync
   useEffect(() => {
-    const saved = localStorage.getItem('stella_conversations');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.conversations?.length > 0) setConversationList(parsed.conversations);
-        if (parsed.activeId) {
-          setActiveConversationId(parsed.activeId);
-          const msgs = parsed.messages?.[parsed.activeId];
-          if (msgs?.length > 0) setMessages(msgs);
+    activeConvRef.current = activeConversationId;
+  }, [activeConversationId]);
+
+  // Load conversations from Postgres on mount
+  useEffect(() => {
+    fetch(`${API}/conversations`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.conversations?.length > 0) {
+          const convs: Conversation[] = data.conversations.map((c: { id: string; title: string; updated_at: string }) => ({
+            id: c.id,
+            title: c.title,
+            timestamp: new Date(c.updated_at).toLocaleDateString(),
+          }));
+          setConversationList(convs);
+          // Load most recent
+          setActiveConversationId(convs[0].id);
+          loadConversation(convs[0].id);
+        } else {
+          // No conversations yet — show welcome
+          setMessages([{
+            id: Date.now().toString(),
+            role: 'stella',
+            content: 'Good morning, Shai. What are we working on today?',
+            timestamp: nowTimestamp(),
+          }]);
         }
-      } catch {}
-    }
+      })
+      .catch(() => {
+        setMessages([{
+          id: Date.now().toString(),
+          role: 'stella',
+          content: 'Good morning, Shai. What are we working on today?',
+          timestamp: nowTimestamp(),
+        }]);
+      });
   }, []);
 
+  async function loadConversation(convId: string) {
+    try {
+      const res = await fetch(`${API}/conversations/${convId}/messages`);
+      const data = await res.json();
+      if (data.messages?.length > 0) {
+        setMessages(
+          data.messages.map((m: { id: string; role: string; content: string; metadata: Record<string, unknown> | null; created_at: string }) => ({
+            id: m.id,
+            role: m.role as 'stella' | 'user',
+            content: m.content,
+            timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+            ...(m.metadata ?? {}),
+          }))
+        );
+        isFirstUserMsg.current = !data.messages.some((m: { role: string }) => m.role === 'user');
+      } else {
+        setMessages([{
+          id: Date.now().toString(),
+          role: 'stella',
+          content: 'What are we working on?',
+          timestamp: nowTimestamp(),
+        }]);
+        isFirstUserMsg.current = true;
+      }
+    } catch {
+      setMessages([{
+        id: Date.now().toString(),
+        role: 'stella',
+        content: 'What are we working on?',
+        timestamp: nowTimestamp(),
+      }]);
+      isFirstUserMsg.current = true;
+    }
+  }
+
+  async function ensureConversation(): Promise<string> {
+    if (activeConvRef.current) return activeConvRef.current;
+    try {
+      const res = await fetch(`${API}/conversations`, { method: 'POST' });
+      const conv = await res.json();
+      const newConv: Conversation = {
+        id: conv.id,
+        title: conv.title,
+        timestamp: 'just now',
+      };
+      activeConvRef.current = conv.id;
+      setActiveConversationId(conv.id);
+      setConversationList((prev) => [newConv, ...prev]);
+      isFirstUserMsg.current = true;
+      return conv.id;
+    } catch {
+      return '';
+    }
+  }
+
   const handleSend = useCallback(async (text: string) => {
+    const convId = await ensureConversation();
+
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: text,
-      timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+      timestamp: nowTimestamp(),
     };
     setMessages((prev) => [...prev, userMsg]);
     setIsThinking(true);
+
+    // Persist user message
+    if (convId) saveMessageToDb(convId, 'user', text);
+
+    // Auto-title after first user message
+    if (isFirstUserMsg.current && convId) {
+      isFirstUserMsg.current = false;
+      const title = text.slice(0, 40) + (text.length > 40 ? '…' : '');
+      patchTitle(convId, title);
+      setConversationList((prev) =>
+        prev.map((c) => (c.id === convId ? { ...c, title, timestamp: 'just now' } : c))
+      );
+    }
 
     try {
       const history = messages.slice(-6).map((m) => ({
@@ -78,50 +199,30 @@ const Index = () => {
           id: (Date.now() + 1).toString(),
           role: 'stella',
           content: data.content,
-          timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+          timestamp: nowTimestamp(),
         };
         const runMsg: Message = {
           id: (Date.now() + 2).toString(),
           role: 'stella',
           content: '',
-          timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+          timestamp: nowTimestamp(),
           showRunCard: true,
           pipelineType: data.intent === 'BUILD' ? 'build' : 'research',
           runId,
         };
-        setMessages((prev) => {
-          const updated = [...prev, stellaMsg, runMsg];
-          setConversationList((prevConvs) => {
-            const updatedConvs = prevConvs.map((c) =>
-              c.id === activeConversationId && c.title === 'New chat'
-                ? { ...c, title: text.slice(0, 40), timestamp: 'just now' }
-                : c
-            );
-            saveToStorage(updated, activeConversationId, updatedConvs);
-            return updatedConvs;
-          });
-          return updated;
-        });
+        setMessages((prev) => [...prev, stellaMsg, runMsg]);
+        // Persist Stella's reply
+        if (convId) saveMessageToDb(convId, 'stella', data.content, { intent: data.intent, run_id: runId });
       } else {
         const stellaMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: 'stella',
           content: data.content,
-          timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+          timestamp: nowTimestamp(),
         };
-        setMessages((prev) => {
-          const updated = [...prev, stellaMsg];
-          setConversationList((prevConvs) => {
-            const updatedConvs = prevConvs.map((c) =>
-              c.id === activeConversationId && c.title === 'New chat'
-                ? { ...c, title: text.slice(0, 40), timestamp: 'just now' }
-                : c
-            );
-            saveToStorage(updated, activeConversationId, updatedConvs);
-            return updatedConvs;
-          });
-          return updated;
-        });
+        setMessages((prev) => [...prev, stellaMsg]);
+        // Persist Stella's reply
+        if (convId) saveMessageToDb(convId, 'stella', data.content, { intent: data.intent, action: data.action });
       }
     } catch (err) {
       console.error('[handleSend] error:', err);
@@ -129,23 +230,31 @@ const Index = () => {
         id: (Date.now() + 1).toString(),
         role: 'stella',
         content: 'Something went wrong. Check the console.',
-        timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        timestamp: nowTimestamp(),
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsThinking(false);
     }
-  }, [messages, activeConversationId]);
+  }, [messages]);
 
-  const handleClearChat = useCallback(() => {
-    setMessages([
-      {
-        id: Date.now().toString(),
-        role: 'stella',
-        content: 'Chat cleared. What would you like to work on?',
-        timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-      },
-    ]);
+  const handleClearChat = useCallback(async () => {
+    // Create a new conversation for the clear
+    const res = await fetch(`${API}/conversations`, { method: 'POST' }).catch(() => null);
+    if (res) {
+      const conv = await res.json();
+      const newConv: Conversation = { id: conv.id, title: conv.title, timestamp: 'just now' };
+      activeConvRef.current = conv.id;
+      setActiveConversationId(conv.id);
+      setConversationList((prev) => [newConv, ...prev]);
+      isFirstUserMsg.current = true;
+    }
+    setMessages([{
+      id: Date.now().toString(),
+      role: 'stella',
+      content: randomClearMessage(),
+      timestamp: nowTimestamp(),
+    }]);
   }, []);
 
   const handleAction = useCallback(async (action: 'research' | 'build' | 'both') => {
@@ -165,8 +274,8 @@ const Index = () => {
 
       const data = await res.json();
       const runId = data.run_id || data.runId;
-      const buildRunId = data.build_run_id;
-      const ts = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const chainId = data.chain_id;
+      const ts = nowTimestamp();
 
       const confirmMsg: Message = {
         id: Date.now().toString(),
@@ -177,99 +286,75 @@ const Index = () => {
 
       const newMessages: Message[] = [confirmMsg];
 
-      if (runId) {
+      if (chainId) {
+        newMessages.push({
+          id: (Date.now() + 1).toString(),
+          role: 'stella',
+          content: '',
+          timestamp: ts,
+          showChainCard: true,
+          chainId,
+        });
+      } else if (runId) {
         newMessages.push({
           id: (Date.now() + 1).toString(),
           role: 'stella',
           content: '',
           timestamp: ts,
           showRunCard: true,
-          pipelineType: buildRunId ? 'research' : (action === 'build' ? 'build' : 'research'),
+          pipelineType: action === 'build' ? 'build' : 'research',
           runId,
         });
       }
 
-      if (buildRunId) {
-        newMessages.push({
-          id: (Date.now() + 2).toString(),
-          role: 'stella',
-          content: '',
-          timestamp: ts,
-          showRunCard: true,
-          pipelineType: 'build',
-          runId: buildRunId,
-        });
-      }
+      setMessages((prev) => [...prev, ...newMessages]);
 
-      setMessages((prev) => {
-        const updated = [...prev, ...newMessages];
-        saveToStorage(updated, activeConversationId, conversationList);
-        return updated;
-      });
+      // Persist action confirmation
+      const convId = activeConvRef.current;
+      if (convId) saveMessageToDb(convId, 'stella', confirmMsg.content, { intent: action.toUpperCase(), run_id: runId, chain_id: chainId });
     } catch (err) {
       console.error('[handleAction] error:', err);
       setMessages((prev) => [...prev, {
         id: Date.now().toString(),
         role: 'stella',
         content: 'Failed to start the pipeline. Check the console.',
-        timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        timestamp: nowTimestamp(),
       }]);
     }
-  }, [activeConversationId, conversationList]);
+  }, []);
 
-  const handleNewChat = useCallback(() => {
-    const newId = generateId();
-    const newConv: Conversation = {
-      id: newId,
-      title: 'New chat',
-      timestamp: 'just now',
-    };
-    const initialMsg: Message[] = [{
-      id: Date.now().toString(),
-      role: 'stella',
-      content: 'New chat started. What are we working on?',
-      timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-    }];
-    setActiveConversationId(newId);
-    setConversationList((prev) => {
-      const updated = [newConv, ...prev];
-      saveToStorage(initialMsg, newId, updated);
-      return updated;
-    });
-    setMessages(initialMsg);
-    setHistoryOpen(false);
+  const handleNewChat = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/conversations`, { method: 'POST' });
+      const conv = await res.json();
+      const newConv: Conversation = { id: conv.id, title: conv.title, timestamp: 'just now' };
+      activeConvRef.current = conv.id;
+      setActiveConversationId(conv.id);
+      setConversationList((prev) => [newConv, ...prev]);
+      isFirstUserMsg.current = true;
+      setMessages([{
+        id: Date.now().toString(),
+        role: 'stella',
+        content: randomClearMessage(),
+        timestamp: nowTimestamp(),
+      }]);
+    } catch {}
   }, []);
 
   const handleSelectConversation = useCallback((id: string) => {
+    if (id === activeConvRef.current) return;
     setActiveConversationId(id);
-    setHistoryOpen(false);
-    const saved = localStorage.getItem('stella_conversations');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const msgs = parsed.messages?.[id];
-        if (msgs?.length > 0) {
-          setMessages(msgs);
-          return;
-        }
-      } catch {}
-    }
-    setMessages([{
-      id: Date.now().toString(),
-      role: 'stella',
-      content: 'What are we working on?',
-      timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-    }]);
+    loadConversation(id);
   }, []);
 
   const handleViewChange = useCallback((view: 'chat' | 'settings') => {
     setActiveView(view);
-    setHistoryOpen(false);
     if (isMobile) setMobileSidebarOpen(false);
   }, [isMobile]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
+      {/* Icon sidebar */}
       {isMobile ? (
         <AnimatePresence>
           {mobileSidebarOpen && (
@@ -292,7 +377,7 @@ const Index = () => {
                 <Sidebar
                   activeView={activeView}
                   onViewChange={handleViewChange}
-                  onChatIconClick={() => setHistoryOpen((p) => !p)}
+                  onChatIconClick={() => {}}
                 />
               </motion.div>
             </>
@@ -302,20 +387,24 @@ const Index = () => {
         <Sidebar
           activeView={activeView}
           onViewChange={handleViewChange}
-          onChatIconClick={() => setHistoryOpen((p) => !p)}
+          onChatIconClick={() => {}}
         />
       )}
 
-      <ConversationHistory
-        open={historyOpen}
-        conversations={conversationList}
-        activeId={activeConversationId}
-        onSelect={handleSelectConversation}
-        onNewChat={handleNewChat}
-        onClose={() => setHistoryOpen(false)}
-      />
+      {/* Persistent conversation history panel — desktop only */}
+      {!isMobile && (
+        <div style={{ marginLeft: '52px' }}>
+          <ConversationHistory
+            conversations={conversationList}
+            activeId={activeConversationId ?? ''}
+            onSelect={handleSelectConversation}
+            onNewChat={handleNewChat}
+          />
+        </div>
+      )}
 
-      <div className="flex flex-col flex-1 min-w-0" style={{ marginLeft: isMobile ? 0 : '52px' }}>
+      {/* Main content */}
+      <div className="flex flex-col flex-1 min-w-0">
         <Topbar
           onClearChat={handleClearChat}
           activeView={activeView}
@@ -326,7 +415,21 @@ const Index = () => {
         {activeView === 'chat' ? (
           <>
             <ChatView messages={messages} onAction={handleAction} isThinking={isThinking} />
-            <Composer onSend={handleSend} />
+            <Composer
+              onSend={handleSend}
+              onDocumentUploaded={(id, filename, msg) => {
+                const uploadMsg: Message = {
+                  id: Date.now().toString(),
+                  role: 'stella',
+                  content: `Got "${filename}". ${msg}\n\nOnce indexed, you can ask me to validate it, summarize it, research more around it, or build from it.`,
+                  timestamp: nowTimestamp(),
+                };
+                setMessages(prev => [...prev, uploadMsg]);
+                // Persist upload message
+                const convId = activeConvRef.current;
+                if (convId) saveMessageToDb(convId, 'stella', uploadMsg.content, { document_id: id });
+              }}
+            />
           </>
         ) : (
           <SettingsView />
