@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Plus, FileText, Upload, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Plus, FileText, Upload, ChevronRight, Loader2 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Project, ProjectFile, Conversation, Message } from './types';
+import { useAuthFetch } from '@/hooks/use-auth-fetch';
 import ChatView from './ChatView';
 import Composer from './Composer';
 
@@ -22,23 +24,15 @@ interface ProjectWorkspaceProps {
 }
 
 export default function ProjectWorkspace({
-  project,
-  conversations,
-  activeConversationId,
-  messages,
-  isThinking,
-  onBack,
-  onSelectConversation,
-  onNewChatInProject,
-  onSend,
-  onAction,
-  onDocumentUploaded,
-  onProjectUpdated,
+  project, conversations, activeConversationId, messages, isThinking,
+  onBack, onSelectConversation, onNewChatInProject, onSend, onAction, onDocumentUploaded, onProjectUpdated,
 }: ProjectWorkspaceProps) {
+  const authFetch = useAuthFetch();
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(project.name);
   const [instructionsValue, setInstructionsValue] = useState(project.instructions ?? '');
+  const [isUploading, setIsUploading] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,19 +44,17 @@ export default function ProjectWorkspace({
   }, [project.id]);
 
   useEffect(() => {
-    fetch(`${API}/projects/${project.id}/files`)
+    authFetch(`${API}/projects/${project.id}/files`)
       .then(r => r.json())
       .then(data => setFiles(data.files ?? []))
       .catch(() => {});
-  }, [project.id]);
+  }, [project.id, authFetch]);
 
-  useEffect(() => {
-    if (editingName) nameRef.current?.focus();
-  }, [editingName]);
+  useEffect(() => { if (editingName) nameRef.current?.focus(); }, [editingName]);
 
   const saveProject = useCallback(async (updates: Partial<Project>) => {
     try {
-      const res = await fetch(`${API}/projects/${project.id}`, {
+      const res = await authFetch(`${API}/projects/${project.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -70,53 +62,47 @@ export default function ProjectWorkspace({
       const updated = await res.json();
       onProjectUpdated({ ...project, ...updated });
     } catch {}
-  }, [project, onProjectUpdated]);
+  }, [project, onProjectUpdated, authFetch]);
 
   const handleNameBlur = () => {
     setEditingName(false);
-    if (nameValue.trim() && nameValue !== project.name) {
-      saveProject({ name: nameValue.trim() });
-    }
+    if (nameValue.trim() && nameValue !== project.name) saveProject({ name: nameValue.trim() });
   };
 
   const handleInstructionsBlur = () => {
-    if (instructionsValue !== (project.instructions ?? '')) {
-      saveProject({ instructions: instructionsValue });
-    }
+    if (instructionsValue !== (project.instructions ?? '')) saveProject({ instructions: instructionsValue });
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setIsUploading(true);
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = await fetch(`${API}/documents/upload`, { method: 'POST', body: formData });
+      const res = await authFetch(`${API}/documents/upload`, { method: 'POST', body: formData });
       const data = await res.json();
       if (data.documentId) {
-        // Assign to project
-        await fetch(`${API}/documents/${data.documentId}`, {
+        await authFetch(`${API}/documents/${data.documentId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ project_id: project.id, scope: 'project' }),
         });
         setFiles(prev => [{
-          id: data.documentId,
-          original_name: file.name,
-          file_type: file.name.split('.').pop() ?? '',
-          status: 'processing',
-          scope: 'project',
-          uploaded_at: new Date().toISOString(),
+          id: data.documentId, original_name: file.name,
+          file_type: file.name.split('.').pop() ?? '', status: 'processing',
+          scope: 'project', uploaded_at: new Date().toISOString(),
         }, ...prev]);
       }
-    } catch {}
+    } catch (err) { console.error('Project file upload failed', err); }
+    finally { setIsUploading(false); }
     e.target.value = '';
   };
 
   const toggleFileScope = async (fileId: string, currentScope: string) => {
     const newScope = currentScope === 'project' ? 'chat' : 'project';
     try {
-      await fetch(`${API}/documents/${fileId}`, {
+      await authFetch(`${API}/documents/${fileId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scope: newScope }),
@@ -130,64 +116,35 @@ export default function ProjectWorkspace({
   return (
     <div className="flex h-full w-full">
       {/* Left: project sidebar */}
-      <div style={{
-        width: 260, flexShrink: 0, height: '100%',
-        backgroundColor: '#141311', borderRight: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex', flexDirection: 'column',
-        fontFamily: 'var(--font-display)',
-      }}>
-        <div style={{ padding: '14px 12px 8px' }}>
-          <button onClick={onBack} style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            color: 'var(--color-cl-text-muted)', fontSize: 12, fontFamily: 'var(--font-display)',
-            padding: '4px 0', marginBottom: 8,
-          }}>
+      <div className="w-[260px] flex-shrink-0 h-full bg-stella-sidebar border-r border-stella-border flex flex-col">
+        <div className="px-3 pt-3.5 pb-2">
+          <button onClick={onBack}
+            className="flex items-center gap-1.5 text-stella-text-muted text-xs py-1 mb-2 hover:text-foreground transition-colors">
             <ArrowLeft size={14} /> All projects
           </button>
-
-          <button onClick={onNewChatInProject} style={{
-            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            padding: '9px 0', borderRadius: 10,
-            background: 'var(--color-cl-terra)', border: 'none',
-            color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            fontFamily: 'var(--font-display)', transition: 'filter 0.15s',
-          }}
-            onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
-            onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
-          >
+          <button onClick={onNewChatInProject}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-white text-[13px] font-semibold hover:brightness-110 transition-all active:scale-[0.98]">
             <Plus size={15} strokeWidth={2.5} /> New chat in project
           </button>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px' }}>
-          <div style={{
-            fontSize: 11, fontWeight: 600, color: 'var(--color-cl-text-dim)',
-            textTransform: 'uppercase', letterSpacing: '0.05em', padding: '8px 6px 4px',
-          }}>Conversations</div>
-
+        <div className="flex-1 overflow-y-auto px-2">
+          <div className="text-[11px] font-semibold text-stella-text-dim uppercase tracking-wider px-1.5 pt-2 pb-1">
+            Conversations
+          </div>
           {projectConvs.length === 0 && (
-            <div style={{ padding: '8px 8px', fontSize: 12, color: 'var(--color-cl-text-dim)', opacity: 0.6 }}>
-              No conversations yet
-            </div>
+            <div className="px-2 py-2 text-xs text-stella-text-dim/60">No conversations yet</div>
           )}
           {projectConvs.map(conv => {
             const isActive = conv.id === activeConversationId;
             return (
-              <button key={conv.id} onClick={() => onSelectConversation(conv.id)} style={{
-                display: 'block', width: '100%', textAlign: 'left',
-                padding: '8px 10px', borderRadius: 8,
-                background: isActive ? 'rgba(218,119,86,0.12)' : 'transparent',
-                border: 'none', cursor: 'pointer', transition: 'background 0.15s',
-              }}
-                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
-              >
-                <div style={{
-                  fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: isActive ? 500 : 400,
-                  color: isActive ? 'var(--color-cl-text)' : 'var(--color-cl-text-muted)',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>{conv.title}</div>
+              <button key={conv.id} onClick={() => onSelectConversation(conv.id)}
+                className={`block w-full text-left px-2.5 py-2 rounded-lg mb-0.5 transition-colors ${
+                  isActive ? 'bg-stella-terra-dim' : 'hover:bg-white/[0.04]'
+                }`}>
+                <div className={`text-[13px] truncate ${isActive ? 'text-foreground font-medium' : 'text-stella-text-muted'}`}>
+                  {conv.title}
+                </div>
               </button>
             );
           })}
@@ -199,162 +156,96 @@ export default function ProjectWorkspace({
         {hasActiveConv ? (
           <>
             <ChatView messages={messages} onAction={onAction} isThinking={isThinking} />
-            <Composer
-              onSend={onSend}
-              onDocumentUploaded={onDocumentUploaded}
-            />
+            <Composer onSend={onSend} onDocumentUploaded={onDocumentUploaded} />
           </>
         ) : (
-          <div style={{ flex: 1, overflowY: 'auto', padding: '3rem 2rem' }}>
-            <div style={{ maxWidth: 600, margin: '0 auto' }}>
-              <h1 style={{
-                fontSize: 24, fontWeight: 600, color: 'var(--color-cl-text)',
-                fontFamily: 'var(--font-display)', marginBottom: 8,
-              }}>{project.name}</h1>
-              {project.description && (
-                <p style={{ fontSize: 14, color: 'var(--color-cl-text-muted)', marginBottom: 24 }}>{project.description}</p>
-              )}
-              <div style={{ fontSize: 13, color: 'var(--color-cl-text-dim)', marginBottom: 24 }}>
-                {projectConvs.length} conversation{projectConvs.length !== 1 ? 's' : ''} &middot; {files.length} file{files.length !== 1 ? 's' : ''}
+          <div className="flex-1 overflow-y-auto px-8 py-12">
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="max-w-[600px] mx-auto">
+              <h1 className="text-2xl font-semibold text-foreground mb-2">{project.name}</h1>
+              {project.description && <p className="text-sm text-stella-text-muted mb-6">{project.description}</p>}
+              <div className="text-[13px] text-stella-text-dim mb-6">
+                {projectConvs.length} conversation{projectConvs.length !== 1 ? 's' : ''} · {files.length} file{files.length !== 1 ? 's' : ''}
               </div>
 
               {projectConvs.length > 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-cl-text-muted)', marginBottom: 8 }}>Recent conversations</div>
+                <div className="mb-6">
+                  <div className="text-[13px] font-semibold text-stella-text-muted mb-2">Recent conversations</div>
                   {projectConvs.slice(0, 5).map(c => (
-                    <button key={c.id} onClick={() => onSelectConversation(c.id)} style={{
-                      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                      padding: '8px 12px', borderRadius: 8, marginBottom: 4,
-                      background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
-                      cursor: 'pointer', color: 'var(--color-cl-text)', fontSize: 13,
-                      fontFamily: 'var(--font-display)',
-                    }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
-                    >
-                      <ChevronRight size={12} style={{ color: 'var(--color-cl-terra)' }} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title}</span>
+                    <button key={c.id} onClick={() => onSelectConversation(c.id)}
+                      className="flex items-center gap-2 w-full px-3 py-2 rounded-lg mb-1 bg-white/[0.03] border border-stella-border text-foreground text-[13px] hover:bg-white/[0.06] transition-colors">
+                      <ChevronRight size={12} className="text-primary" />
+                      <span className="truncate">{c.title}</span>
                     </button>
                   ))}
                 </div>
               )}
 
-              <button onClick={onNewChatInProject} style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 16px', borderRadius: 10,
-                background: 'var(--color-cl-terra)', border: 'none',
-                color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                fontFamily: 'var(--font-display)',
-              }}>
+              <button onClick={onNewChatInProject}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-[13px] font-semibold hover:brightness-110 transition-all">
                 <Plus size={15} /> Start a conversation
               </button>
-            </div>
+            </motion.div>
           </div>
         )}
       </div>
 
       {/* Right panel: project settings */}
-      <div style={{
-        width: 280, flexShrink: 0, height: '100%',
-        backgroundColor: '#141311', borderLeft: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex', flexDirection: 'column',
-        fontFamily: 'var(--font-display)', overflowY: 'auto',
-        padding: '20px 16px',
-      }}>
+      <div className="w-[280px] flex-shrink-0 h-full bg-stella-sidebar border-l border-stella-border flex flex-col overflow-y-auto px-4 py-5">
         {/* Project name */}
         {editingName ? (
           <input ref={nameRef} value={nameValue}
             onChange={e => setNameValue(e.target.value)}
             onBlur={handleNameBlur}
             onKeyDown={e => { if (e.key === 'Enter') handleNameBlur(); if (e.key === 'Escape') { setNameValue(project.name); setEditingName(false); } }}
-            style={{
-              fontSize: 16, fontWeight: 600, color: 'var(--color-cl-text)',
-              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(218,119,86,0.3)',
-              borderRadius: 6, padding: '6px 8px', width: '100%',
-              fontFamily: 'var(--font-display)', outline: 'none', marginBottom: 16,
-            }}
+            className="text-base font-semibold text-foreground bg-white/[0.04] border border-stella-terra-border rounded-md px-2 py-1.5 w-full outline-none mb-4"
           />
         ) : (
-          <div onClick={() => setEditingName(true)} style={{
-            fontSize: 16, fontWeight: 600, color: 'var(--color-cl-text)',
-            cursor: 'pointer', marginBottom: 16, padding: '2px 0',
-          }} title="Click to edit">{project.name}</div>
+          <div onClick={() => setEditingName(true)}
+            className="text-base font-semibold text-foreground cursor-pointer mb-4 py-0.5 hover:text-primary transition-colors"
+            title="Click to edit">{project.name}</div>
         )}
 
         {/* Instructions */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{
-            fontSize: 11, fontWeight: 600, color: 'var(--color-cl-text-dim)',
-            textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6,
-          }}>Instructions</div>
+        <div className="mb-5">
+          <div className="text-[11px] font-semibold text-stella-text-dim uppercase tracking-wider mb-1.5">Instructions</div>
           <textarea
             value={instructionsValue}
             onChange={e => setInstructionsValue(e.target.value)}
             onBlur={handleInstructionsBlur}
             placeholder="Give Stella context about this project..."
             rows={4}
-            style={{
-              width: '100%', resize: 'vertical',
-              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)',
-              borderRadius: 8, padding: '8px 10px',
-              color: 'var(--color-cl-text)', fontSize: 12, fontFamily: 'var(--font-display)',
-              outline: 'none', lineHeight: 1.5,
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'rgba(218,119,86,0.3)')}
+            className="w-full resize-y bg-white/[0.04] border border-stella-border rounded-lg px-2.5 py-2 text-xs text-foreground outline-none leading-relaxed placeholder:text-stella-text-dim focus:border-stella-terra-border transition-colors"
           />
         </div>
 
         {/* Files */}
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{
-              fontSize: 11, fontWeight: 600, color: 'var(--color-cl-text-dim)',
-              textTransform: 'uppercase', letterSpacing: '0.05em',
-            }}>Files</span>
-            <button onClick={() => fileInputRef.current?.click()} style={{
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              color: 'var(--color-cl-text-dim)', padding: 2, borderRadius: 4,
-            }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-cl-terra)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-cl-text-dim)')}
-            >
-              <Upload size={13} />
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-semibold text-stella-text-dim uppercase tracking-wider">Files</span>
+            <button onClick={() => !isUploading && fileInputRef.current?.click()}
+              className={`p-0.5 rounded text-stella-text-dim hover:text-primary transition-colors ${isUploading ? 'opacity-40 cursor-wait' : ''}`}>
+              {isUploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
             </button>
-            <input ref={fileInputRef} type="file" accept=".pdf,.docx,.txt,.md" onChange={handleFileUpload} style={{ display: 'none' }} />
+            <input ref={fileInputRef} type="file" accept=".pdf,.docx,.txt,.md" onChange={handleFileUpload} disabled={isUploading} className="hidden" />
           </div>
 
           {files.length === 0 && (
-            <div style={{ fontSize: 12, color: 'var(--color-cl-text-dim)', opacity: 0.6, padding: '4px 0' }}>
-              No files uploaded yet
-            </div>
+            <div className="text-xs text-stella-text-dim/60 py-1">Upload documents for Stella to reference</div>
           )}
 
           {files.map(file => (
-            <div key={file.id} style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '8px 10px', borderRadius: 8, marginBottom: 4,
-              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)',
-            }}>
-              <FileText size={14} style={{ color: 'var(--color-cl-terra)', opacity: 0.7, flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{
-                  fontSize: 12, color: 'var(--color-cl-text)',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>{file.original_name}</div>
-                <div style={{ fontSize: 10, color: 'var(--color-cl-text-dim)' }}>
-                  {file.file_type.toUpperCase()} &middot; {file.status}
-                </div>
+            <div key={file.id} className="flex items-center gap-2 px-2.5 py-2 rounded-lg mb-1 bg-white/[0.03] border border-white/[0.04]">
+              <FileText size={14} className="text-primary/70 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-xs text-foreground truncate">{file.original_name}</div>
+                <div className="text-[10px] text-stella-text-dim">{file.file_type.toUpperCase()} · {file.status}</div>
               </div>
-              <button
-                onClick={() => toggleFileScope(file.id, file.scope)}
-                style={{
-                  fontSize: 9, padding: '2px 6px', borderRadius: 4,
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  background: file.scope === 'project' ? 'rgba(218,119,86,0.15)' : 'transparent',
-                  color: file.scope === 'project' ? 'var(--color-cl-terra)' : 'var(--color-cl-text-dim)',
-                  cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--font-display)',
-                }}
-              >
+              <button onClick={() => toggleFileScope(file.id, file.scope)}
+                className={`text-[9px] px-1.5 py-0.5 rounded border whitespace-nowrap transition-colors ${
+                  file.scope === 'project'
+                    ? 'bg-stella-terra-dim border-stella-terra-border text-primary'
+                    : 'border-stella-border text-stella-text-dim'
+                }`}>
                 {file.scope === 'project' ? 'Project' : 'Chat only'}
               </button>
             </div>

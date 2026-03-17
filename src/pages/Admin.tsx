@@ -12,9 +12,9 @@ export default function Admin() {
   const [authenticated, setAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [verifying, setVerifying] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('runs');
 
-  // Data states
   const [runs, setRuns] = useState<any[]>([]);
   const [health, setHealth] = useState<Record<string, boolean>>({});
   const [logs, setLogs] = useState('');
@@ -27,78 +27,76 @@ export default function Admin() {
   const email = user?.primaryEmailAddress?.emailAddress;
   const isOwner = email === OWNER_EMAIL;
 
-  // Not owner → blocked
   if (!isOwner) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#2b2a27', color: '#f87171', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-        <div style={{ textAlign: 'center' }}>
-          <h2 style={{ fontSize: '1.5rem', marginBottom: 8 }}>Access Denied</h2>
-          <p style={{ color: '#a09f9a' }}>This page is only accessible to the owner.</p>
-          <a href="/" style={{ color: '#da7756', marginTop: 16, display: 'inline-block' }}>← Back to Stella</a>
+      <div className="min-h-screen flex items-center justify-center bg-background text-destructive">
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold mb-2">Access Denied</h2>
+          <p className="text-stella-text-muted">This page is only accessible to the owner.</p>
+          <a href="/" className="text-primary mt-4 inline-block hover:underline">← Back to Stella</a>
         </div>
       </div>
     );
   }
 
-  // Password gate
+  const handleVerify = async () => {
+    if (!password.trim()) { setError('Enter a password'); return; }
+    setVerifying(true);
+    setError('');
+    try {
+      const res = await authFetch('/api/admin/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': password },
+      });
+      if (res.ok) {
+        setAuthenticated(true);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || `Wrong password (${res.status})`);
+      }
+    } catch (err: any) {
+      console.error('[Admin verify]', err);
+      setError(`Connection failed: ${err.message || 'network error'}`);
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   if (!authenticated) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#2b2a27', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-        <div style={{ background: '#1f1e1b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 32, width: 340 }}>
-          <h2 style={{ color: '#da7756', fontSize: '1.25rem', fontWeight: 600, marginBottom: 4 }}>Admin Access</h2>
-          <p style={{ color: '#6b6a65', fontSize: 13, marginBottom: 20 }}>Enter the admin password to continue.</p>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="bg-card border border-stella-border rounded-xl p-8 w-[340px]">
+          <h2 className="text-primary text-xl font-semibold mb-1">Admin Access</h2>
+          <p className="text-stella-text-dim text-[13px] mb-5">Enter the admin password to continue.</p>
           <input
             type="password"
             value={password}
             onChange={e => { setPassword(e.target.value); setError(''); }}
-            onKeyDown={async e => {
-              if (e.key === 'Enter') {
-                try {
-                  const res = await authFetch('/api/admin/verify', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': password },
-                  });
-                  if (res.ok) setAuthenticated(true);
-                  else setError('Wrong password');
-                } catch { setError('Failed to verify'); }
-              }
-            }}
+            onKeyDown={e => { if (e.key === 'Enter') handleVerify(); }}
             placeholder="Admin password..."
-            style={{
-              width: '100%', padding: '10px 12px', borderRadius: 8,
-              backgroundColor: '#2b2a27', border: '1px solid rgba(255,255,255,0.08)',
-              color: '#eeeeee', fontSize: 14, outline: 'none',
-              fontFamily: 'ui-monospace, SF Mono, Menlo, monospace',
-            }}
+            autoFocus
+            className={`w-full px-3 py-2.5 rounded-lg bg-background border text-foreground text-sm font-mono outline-none transition-colors ${
+              error ? 'border-destructive/40' : 'border-stella-border focus:border-stella-terra-border'
+            }`}
           />
-          {error && <p style={{ color: '#f87171', fontSize: 12, marginTop: 8 }}>{error}</p>}
+          {error && <p className="text-destructive text-xs mt-2">{error}</p>}
           <button
-            onClick={async () => {
-              try {
-                const res = await authFetch('/api/admin/verify', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': password },
-                });
-                if (res.ok) setAuthenticated(true);
-                else setError('Wrong password');
-              } catch { setError('Failed to verify'); }
-            }}
-            style={{
-              width: '100%', marginTop: 12, padding: '10px 0', borderRadius: 8,
-              backgroundColor: '#da7756', border: 'none', color: '#fff',
-              fontSize: 14, fontWeight: 600, cursor: 'pointer',
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-            }}
+            onClick={handleVerify}
+            disabled={verifying}
+            className={`w-full mt-3 py-2.5 rounded-lg text-sm font-semibold text-white transition-all ${
+              verifying ? 'bg-primary/60 cursor-wait' : 'bg-primary hover:brightness-110 cursor-pointer'
+            }`}
           >
-            Verify
+            {verifying ? 'Verifying...' : 'Verify'}
           </button>
-          <a href="/" style={{ display: 'block', textAlign: 'center', color: '#6b6a65', fontSize: 12, marginTop: 16, textDecoration: 'none' }}>← Back to Stella</a>
+          <a href="/" className="block text-center text-stella-text-dim text-xs mt-4 hover:text-stella-text-muted transition-colors">
+            ← Back to Stella
+          </a>
         </div>
       </div>
     );
   }
 
-  // Fetch data based on active tab
   const fetchTabData = useCallback(async (tab: Tab) => {
     const headers: Record<string, string> = { 'X-Admin-Secret': password };
     try {
@@ -159,34 +157,24 @@ export default function Admin() {
     { id: 'metrics', label: 'System Metrics' },
   ];
 
-  const cardStyle: React.CSSProperties = {
-    background: '#1f1e1b', border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 10, padding: 20, marginTop: 16,
-  };
-
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#2b2a27', color: '#eeeeee', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+    <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <div style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <a href="/" style={{ color: '#6b6a65', fontSize: 13, textDecoration: 'none' }}>← Stella</a>
-        <h1 style={{ color: '#da7756', fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>Admin Dashboard</h1>
+      <div className="border-b border-stella-border px-6 py-3.5 flex items-center gap-3">
+        <a href="/" className="text-stella-text-dim text-[13px] hover:text-stella-text-muted transition-colors">← Stella</a>
+        <h1 className="text-primary text-lg font-semibold">Admin Dashboard</h1>
       </div>
 
-      <div style={{ display: 'flex', maxWidth: 1200, margin: '0 auto', padding: '16px 24px', gap: 20 }}>
+      <div className="flex max-w-[1200px] mx-auto px-6 py-4 gap-5">
         {/* Tab nav */}
-        <div style={{ width: 180, flexShrink: 0 }}>
+        <div className="w-[180px] flex-shrink-0">
           {tabs.map(t => (
-            <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
-              display: 'block', width: '100%', textAlign: 'left',
-              padding: '9px 12px', borderRadius: 8, marginBottom: 4,
-              background: activeTab === t.id ? 'rgba(218,119,86,0.12)' : 'transparent',
-              border: 'none', cursor: 'pointer', fontSize: 13,
-              color: activeTab === t.id ? '#da7756' : '#a09f9a',
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              transition: 'background 0.15s',
-            }}
-              onMouseEnter={e => { if (activeTab !== t.id) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-              onMouseLeave={e => { if (activeTab !== t.id) e.currentTarget.style.background = 'transparent'; }}
+            <button key={t.id} onClick={() => setActiveTab(t.id)}
+              className={`block w-full text-left px-3 py-2.5 rounded-lg mb-1 text-[13px] transition-colors ${
+                activeTab === t.id
+                  ? 'bg-stella-terra-dim text-primary'
+                  : 'text-stella-text-muted hover:bg-white/[0.04]'
+              }`}
             >
               {t.label}
             </button>
@@ -194,179 +182,187 @@ export default function Admin() {
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* PIPELINE RUNS */}
-          {activeTab === 'runs' && (
-            <div style={cardStyle}>
-              <h2 style={{ fontSize: 16, fontWeight: 600, color: '#da7756', marginBottom: 12 }}>Pipeline Runs</h2>
-              {runs.length === 0 ? (
-                <p style={{ color: '#6b6a65', fontSize: 13 }}>No runs found.</p>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                        {['ID', 'Mode', 'Status', 'Cost', 'Started'].map(h => (
-                          <th key={h} style={{ textAlign: 'left', padding: '8px 10px', color: '#6b6a65', fontWeight: 500 }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {runs.map((r: any) => (
-                        <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                          <td style={{ padding: '8px 10px', fontFamily: 'monospace', color: '#a09f9a' }}>{r.id?.slice(0, 8)}…</td>
-                          <td style={{ padding: '8px 10px' }}>
-                            <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: r.mode === 'research' ? 'rgba(218,119,86,0.15)' : 'rgba(74,222,128,0.15)', color: r.mode === 'research' ? '#da7756' : '#4ade80' }}>{r.mode}</span>
-                          </td>
-                          <td style={{ padding: '8px 10px', color: r.status === 'completed' ? '#4ade80' : r.status === 'failed' ? '#f87171' : '#a09f9a' }}>{r.status}</td>
-                          <td style={{ padding: '8px 10px', fontFamily: 'monospace', color: '#a09f9a' }}>${(r.total_cost_usd ?? 0).toFixed(4)}</td>
-                          <td style={{ padding: '8px 10px', color: '#6b6a65' }}>{r.started_at ? new Date(r.started_at).toLocaleString() : '—'}</td>
+        <div className="flex-1 min-w-0">
+          <div className="bg-card border border-stella-border rounded-xl p-5 mt-4">
+            {/* PIPELINE RUNS */}
+            {activeTab === 'runs' && (
+              <>
+                <h2 className="text-base font-semibold text-primary mb-3">Pipeline Runs</h2>
+                {runs.length === 0 ? (
+                  <p className="text-stella-text-dim text-[13px]">No runs found.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-stella-border">
+                          {['ID', 'Mode', 'Status', 'Cost', 'Started'].map(h => (
+                            <th key={h} className="text-left py-2 px-2.5 text-stella-text-dim font-medium">{h}</th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* SERVICE HEALTH */}
-          {activeTab === 'health' && (
-            <div style={cardStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <h2 style={{ fontSize: 16, fontWeight: 600, color: '#da7756' }}>Service Health</h2>
-                <button onClick={() => fetchTabData('health')} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '4px 12px', color: '#a09f9a', fontSize: 11, cursor: 'pointer' }}>Refresh</button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
-                {Object.entries(health).map(([name, up]) => (
-                  <div key={name} style={{ background: '#2b2a27', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: up ? '#4ade80' : '#f87171' }} />
-                    <span style={{ fontSize: 13, color: '#eeeeee' }}>{name}</span>
+                      </thead>
+                      <tbody>
+                        {runs.map((r: any) => (
+                          <tr key={r.id} className="border-b border-white/[0.04]">
+                            <td className="py-2 px-2.5 font-mono text-stella-text-muted">{r.id?.slice(0, 8)}…</td>
+                            <td className="py-2 px-2.5">
+                              <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                                r.mode === 'research' ? 'bg-stella-terra-dim text-primary' : 'bg-stella-green-dim text-stella-green'
+                              }`}>{r.mode}</span>
+                            </td>
+                            <td className={`py-2 px-2.5 ${
+                              r.status === 'completed' ? 'text-stella-green' : r.status === 'failed' ? 'text-destructive' : 'text-stella-text-muted'
+                            }`}>{r.status}</td>
+                            <td className="py-2 px-2.5 font-mono text-stella-text-muted">${(r.total_cost_usd ?? 0).toFixed(4)}</td>
+                            <td className="py-2 px-2.5 text-stella-text-dim">{r.started_at ? new Date(r.started_at).toLocaleString() : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                )}
+              </>
+            )}
 
-          {/* LOG VIEWER */}
-          {activeTab === 'logs' && (
-            <div style={cardStyle}>
-              <h2 style={{ fontSize: 16, fontWeight: 600, color: '#da7756', marginBottom: 12 }}>Log Viewer</h2>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                <input
-                  value={logSearch}
-                  onChange={e => setLogSearch(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') fetchTabData('logs'); }}
-                  placeholder="Search logs..."
-                  style={{ flex: 1, padding: '8px 12px', borderRadius: 6, backgroundColor: '#2b2a27', border: '1px solid rgba(255,255,255,0.08)', color: '#eeeeee', fontSize: 12, outline: 'none', fontFamily: 'monospace' }}
-                />
-                <button onClick={() => fetchTabData('logs')} style={{ padding: '8px 16px', borderRadius: 6, background: '#da7756', border: 'none', color: '#fff', fontSize: 12, cursor: 'pointer' }}>Search</button>
-              </div>
-              <pre style={{ background: '#141311', borderRadius: 8, padding: 16, fontSize: 11, fontFamily: 'ui-monospace, SF Mono, Menlo, monospace', color: '#a09f9a', overflowX: 'auto', maxHeight: 500, overflowY: 'auto', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                {logs || 'No logs found.'}
-              </pre>
-            </div>
-          )}
-
-          {/* CHARACTER EDITOR */}
-          {activeTab === 'character' && (
-            <div style={cardStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <h2 style={{ fontSize: 16, fontWeight: 600, color: '#da7756' }}>Character Editor</h2>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  {characterSaved && <span style={{ color: '#4ade80', fontSize: 12 }}>Saved ✓</span>}
-                  <button
-                    onClick={async () => {
-                      try {
-                        await authFetch('/api/admin/character', {
-                          method: 'PUT',
-                          headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': password },
-                          body: JSON.stringify({ content: character }),
-                        });
-                        setCharacterSaved(true);
-                        setTimeout(() => setCharacterSaved(false), 3000);
-                      } catch {}
-                    }}
-                    style={{ padding: '6px 16px', borderRadius: 6, background: '#da7756', border: 'none', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    Save
+            {/* SERVICE HEALTH */}
+            {activeTab === 'health' && (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base font-semibold text-primary">Service Health</h2>
+                  <button onClick={() => fetchTabData('health')}
+                    className="border border-stella-border rounded-md px-3 py-1 text-[11px] text-stella-text-muted hover:text-foreground transition-colors">
+                    Refresh
                   </button>
                 </div>
-              </div>
-              <textarea
-                value={character}
-                onChange={e => setCharacter(e.target.value)}
-                style={{
-                  width: '100%', minHeight: 400, padding: 16, borderRadius: 8,
-                  backgroundColor: '#141311', border: '1px solid rgba(255,255,255,0.08)',
-                  color: '#eeeeee', fontSize: 13, fontFamily: 'ui-monospace, SF Mono, Menlo, monospace',
-                  lineHeight: 1.7, outline: 'none', resize: 'vertical',
-                }}
-              />
-            </div>
-          )}
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+                  {Object.entries(health).map(([name, up]) => (
+                    <div key={name} className="bg-background rounded-lg px-4 py-3 flex items-center gap-2.5">
+                      <div className={`w-2.5 h-2.5 rounded-full ${up ? 'bg-stella-green' : 'bg-destructive'}`} />
+                      <span className="text-[13px] text-foreground">{name}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
-          {/* PREFERENCES */}
-          {activeTab === 'preferences' && (
-            <div style={cardStyle}>
-              <h2 style={{ fontSize: 16, fontWeight: 600, color: '#da7756', marginBottom: 12 }}>Preferences</h2>
-              {preferences.length === 0 ? (
-                <p style={{ color: '#6b6a65', fontSize: 13 }}>No preferences stored yet.</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {preferences.map((p: any) => (
-                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#2b2a27', borderRadius: 8, padding: '10px 14px' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, color: '#eeeeee', fontWeight: 500 }}>{p.key || p.preference_key}</div>
-                        <div style={{ fontSize: 12, color: '#a09f9a', marginTop: 2 }}>{p.value || p.preference_value}</div>
-                      </div>
-                      <button
-                        onClick={async () => {
-                          await authFetch(`/api/admin/preferences/${p.id}`, {
-                            method: 'DELETE',
-                            headers: { 'X-Admin-Secret': password },
+            {/* LOG VIEWER */}
+            {activeTab === 'logs' && (
+              <>
+                <h2 className="text-base font-semibold text-primary mb-3">Log Viewer</h2>
+                <div className="flex gap-2 mb-3">
+                  <input
+                    value={logSearch}
+                    onChange={e => setLogSearch(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') fetchTabData('logs'); }}
+                    placeholder="Search logs..."
+                    className="flex-1 px-3 py-2 rounded-md bg-background border border-stella-border text-foreground text-xs font-mono outline-none focus:border-stella-terra-border transition-colors"
+                  />
+                  <button onClick={() => fetchTabData('logs')}
+                    className="px-4 py-2 rounded-md bg-primary text-white text-xs font-semibold hover:brightness-110 transition-all">
+                    Search
+                  </button>
+                </div>
+                <pre className="bg-stella-sidebar rounded-lg p-4 text-[11px] font-mono text-stella-text-muted overflow-x-auto max-h-[500px] overflow-y-auto leading-relaxed whitespace-pre-wrap break-all">
+                  {logs || 'No logs found.'}
+                </pre>
+              </>
+            )}
+
+            {/* CHARACTER EDITOR */}
+            {activeTab === 'character' && (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-base font-semibold text-primary">Character Editor</h2>
+                  <div className="flex gap-2 items-center">
+                    {characterSaved && <span className="text-stella-green text-xs">Saved ✓</span>}
+                    <button
+                      onClick={async () => {
+                        try {
+                          await authFetch('/api/admin/character', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': password },
+                            body: JSON.stringify({ content: character }),
                           });
-                          setPreferences(prev => prev.filter(x => x.id !== p.id));
-                        }}
-                        style={{ background: 'transparent', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 6, padding: '4px 10px', color: '#f87171', fontSize: 11, cursor: 'pointer' }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  ))}
+                          setCharacterSaved(true);
+                          setTimeout(() => setCharacterSaved(false), 3000);
+                        } catch {}
+                      }}
+                      className="px-4 py-1.5 rounded-md bg-primary text-white text-xs font-semibold hover:brightness-110 transition-all">
+                      Save
+                    </button>
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
+                <textarea
+                  value={character}
+                  onChange={e => setCharacter(e.target.value)}
+                  className="w-full min-h-[400px] p-4 rounded-lg bg-stella-sidebar border border-stella-border text-foreground text-[13px] font-mono leading-relaxed outline-none resize-y focus:border-stella-terra-border transition-colors"
+                />
+              </>
+            )}
 
-          {/* SYSTEM METRICS */}
-          {activeTab === 'metrics' && (
-            <div style={cardStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <h2 style={{ fontSize: 16, fontWeight: 600, color: '#da7756' }}>System Metrics</h2>
-                <button onClick={() => fetchTabData('metrics')} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '4px 12px', color: '#a09f9a', fontSize: 11, cursor: 'pointer' }}>Refresh</button>
-              </div>
-              {metrics ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-                  {[
-                    { label: 'CPU Usage', value: `${metrics.cpu_percent?.toFixed(1) ?? '—'}%` },
-                    { label: 'Memory Used', value: `${((metrics.memory_used ?? 0) / 1e9).toFixed(1)} GB` },
-                    { label: 'Memory Total', value: `${((metrics.memory_total ?? 0) / 1e9).toFixed(1)} GB` },
-                    { label: 'Disk Used (/Volumes/Stella)', value: `${((metrics.disk_used ?? 0) / 1e9).toFixed(1)} GB` },
-                    { label: 'Disk Free', value: `${((metrics.disk_free ?? 0) / 1e9).toFixed(1)} GB` },
-                    { label: 'Uptime', value: `${((metrics.uptime ?? 0) / 3600).toFixed(1)} hrs` },
-                  ].map(m => (
-                    <div key={m.label} style={{ background: '#2b2a27', borderRadius: 8, padding: '14px 16px' }}>
-                      <div style={{ fontSize: 11, color: '#6b6a65', marginBottom: 4 }}>{m.label}</div>
-                      <div style={{ fontSize: 20, fontWeight: 600, color: '#eeeeee', fontFamily: 'ui-monospace, SF Mono, Menlo, monospace' }}>{m.value}</div>
-                    </div>
-                  ))}
+            {/* PREFERENCES */}
+            {activeTab === 'preferences' && (
+              <>
+                <h2 className="text-base font-semibold text-primary mb-3">Preferences</h2>
+                {preferences.length === 0 ? (
+                  <p className="text-stella-text-dim text-[13px]">No preferences stored yet.</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {preferences.map((p: any) => (
+                      <div key={p.id} className="flex items-center gap-3 bg-background rounded-lg px-3.5 py-2.5">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[13px] text-foreground font-medium">{p.key || p.preference_key}</div>
+                          <div className="text-xs text-stella-text-muted mt-0.5">{p.value || p.preference_value}</div>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            await authFetch(`/api/admin/preferences/${p.id}`, {
+                              method: 'DELETE',
+                              headers: { 'X-Admin-Secret': password },
+                            });
+                            setPreferences(prev => prev.filter(x => x.id !== p.id));
+                          }}
+                          className="border border-destructive/30 rounded-md px-2.5 py-1 text-destructive text-[11px] hover:bg-destructive/10 transition-colors">
+                          Delete
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* SYSTEM METRICS */}
+            {activeTab === 'metrics' && (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base font-semibold text-primary">System Metrics</h2>
+                  <button onClick={() => fetchTabData('metrics')}
+                    className="border border-stella-border rounded-md px-3 py-1 text-[11px] text-stella-text-muted hover:text-foreground transition-colors">
+                    Refresh
+                  </button>
                 </div>
-              ) : (
-                <p style={{ color: '#6b6a65', fontSize: 13 }}>Loading metrics...</p>
-              )}
-            </div>
-          )}
+                {metrics ? (
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3">
+                    {[
+                      { label: 'CPU Usage', value: `${metrics.cpu_percent?.toFixed(1) ?? '—'}%` },
+                      { label: 'Memory Used', value: `${((metrics.memory_used ?? 0) / 1e9).toFixed(1)} GB` },
+                      { label: 'Memory Total', value: `${((metrics.memory_total ?? 0) / 1e9).toFixed(1)} GB` },
+                      { label: 'Disk Used (/Volumes/Stella)', value: `${((metrics.disk_used ?? 0) / 1e9).toFixed(1)} GB` },
+                      { label: 'Disk Free', value: `${((metrics.disk_free ?? 0) / 1e9).toFixed(1)} GB` },
+                      { label: 'Uptime', value: `${((metrics.uptime ?? 0) / 3600).toFixed(1)} hrs` },
+                    ].map(m => (
+                      <div key={m.label} className="bg-background rounded-lg px-4 py-3.5">
+                        <div className="text-[11px] text-stella-text-dim mb-1">{m.label}</div>
+                        <div className="text-xl font-semibold text-foreground font-mono">{m.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-stella-text-dim text-[13px]">Loading metrics...</p>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

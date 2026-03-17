@@ -16,35 +16,12 @@ const App = () => (
       <Toaster />
       <Sonner />
       <SignedOut>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            minHeight: "100vh",
-            backgroundColor: "#2b2a27",
-            fontFamily: "'DM Sans', system-ui, sans-serif",
-          }}
-        >
-          <div style={{ textAlign: "center" }}>
-            <h1
-              style={{
-                color: "#da7756",
-                fontSize: "2rem",
-                fontWeight: 600,
-                marginBottom: "0.5rem",
-                letterSpacing: "-0.02em",
-              }}
-            >
+        <div className="flex justify-center items-center min-h-screen bg-background">
+          <div className="text-center">
+            <h1 className="text-primary text-[2rem] font-semibold mb-2 tracking-tight">
               Stella
             </h1>
-            <p
-              style={{
-                color: "#6b6a65",
-                fontSize: "0.875rem",
-                marginBottom: "2rem",
-              }}
-            >
+            <p className="text-stella-text-dim text-sm mb-8">
               Sign in to continue
             </p>
             <SignIn routing="hash" />
@@ -56,7 +33,6 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/admin" element={<Admin />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { Copy, Check } from 'lucide-react';
 import { Message } from './types';
 import ActionButtons from './ActionButtons';
 import RunProgressCard from './RunProgressCard';
@@ -12,25 +13,39 @@ interface MessageBubbleProps {
   isLatest?: boolean;
 }
 
-// Format timestamp for display
-function formatTime(ts: string): string {
+function formatRelativeTime(ts: string): string {
   try {
-    // If it's already a formatted time like "3:45 PM", return as-is
-    if (/\d{1,2}:\d{2}/.test(ts) && ts.length < 10) return ts;
-    return new Date(ts).toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'Asia/Kolkata'
-    });
+    if (/^\d{1,2}:\d{2}\s*(AM|PM)?$/i.test(ts) && ts.length < 10) return ts;
+    const date = new Date(ts);
+    if (isNaN(date.getTime())) return ts;
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 60) return 'just now';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
   } catch {
     return ts;
   }
 }
 
-// Parse content to render code blocks inline with styling
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+      className="absolute top-2.5 right-2.5 p-1.5 rounded-md bg-white/5 hover:bg-white/10 transition-all opacity-0 group-hover/code:opacity-100"
+      title="Copy code"
+    >
+      {copied ? <Check size={12} className="text-stella-green" /> : <Copy size={12} className="text-stella-text-dim" />}
+    </button>
+  );
+}
+
 function renderContent(content: string): React.ReactNode {
-  // Split by code blocks
   const parts = content.split(/(```[\s\S]*?```|`[^`]+`)/g);
 
   return parts.map((part, i) => {
@@ -38,58 +53,70 @@ function renderContent(content: string): React.ReactNode {
     if (part.startsWith('```') && part.endsWith('```')) {
       const lines = part.slice(3, -3).split('\n');
       const lang = lines[0].trim();
-      const code = lines.slice(1).join('\n');
+      const code = lang ? lines.slice(1).join('\n') : lines.join('\n');
       return (
-        <pre key={i} className="my-3 rounded-lg overflow-x-auto text-xs leading-relaxed"
-          style={{
-            background: 'rgba(0,0,0,0.4)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            padding: '0.875rem 1rem',
-            fontFamily: 'var(--font-mono)',
-            color: '#e2e8f0'
-          }}>
+        <div key={i} className="relative group/code my-3">
           {lang && (
-            <div style={{ color: 'var(--color-cl-terra)', fontSize: '10px', marginBottom: '0.5rem', opacity: 0.7, fontFamily: 'var(--font-display)' }}>
+            <div className="text-[10px] text-primary/70 px-3.5 pt-2.5 pb-0 bg-black/40 rounded-t-lg border border-b-0 border-stella-border">
               {lang}
             </div>
           )}
-          <code>{code}</code>
-        </pre>
+          <pre className={`overflow-x-auto text-[13px] leading-relaxed font-mono text-[#e2e8f0] px-3.5 py-3 bg-black/40 border border-stella-border ${lang ? 'rounded-b-lg border-t-0' : 'rounded-lg'}`}>
+            <code>{code}</code>
+          </pre>
+          <CopyButton text={code} />
+        </div>
       );
     }
     // Inline code
     if (part.startsWith('`') && part.endsWith('`')) {
       return (
-        <code key={i} style={{
-          background: 'rgba(218,119,86,0.1)',
-          border: '1px solid rgba(218,119,86,0.2)',
-          borderRadius: '4px',
-          padding: '0.1em 0.4em',
-          fontSize: '0.85em',
-          fontFamily: 'var(--font-mono)',
-          color: 'var(--color-cl-terra)'
-        }}>{part.slice(1, -1)}</code>
+        <code key={i} className="bg-primary/10 border border-primary/20 rounded px-1.5 py-0.5 text-[0.85em] font-mono text-primary">
+          {part.slice(1, -1)}
+        </code>
       );
     }
-    // Bold text
-    const withBold = part.split(/(\*\*[^*]+\*\*)/g).map((p, j) => {
+    // Bold and italic
+    const processed = part.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((p, j) => {
       if (p.startsWith('**') && p.endsWith('**')) {
-        return <strong key={j} style={{ color: 'var(--color-cl-text)', fontWeight: 600 }}>{p.slice(2, -2)}</strong>;
+        return <strong key={j} className="text-foreground font-semibold">{p.slice(2, -2)}</strong>;
       }
-      return p;
+      if (p.startsWith('*') && p.endsWith('*') && !p.startsWith('**')) {
+        return <em key={j} className="italic">{p.slice(1, -1)}</em>;
+      }
+      // Handle bullet points
+      const bulletLines = p.split('\n').map((line, li) => {
+        const trimmed = line.trimStart();
+        if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+          return (
+            <div key={li} className="flex gap-2 ml-1">
+              <span className="text-primary/60 mt-[2px] flex-shrink-0">•</span>
+              <span>{trimmed.slice(2)}</span>
+            </div>
+          );
+        }
+        return line + (li < p.split('\n').length - 1 ? '\n' : '');
+      });
+      return <React.Fragment key={j}>{bulletLines}</React.Fragment>;
     });
-    return <span key={i}>{withBold}</span>;
+    return <span key={i}>{processed}</span>;
   });
 }
 
 const stellaVariants = {
-  hidden: { opacity: 0, x: -8, y: 4 },
-  visible: { opacity: 1, x: 0, y: 0, transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] } }
+  hidden: { opacity: 0, y: 12, filter: 'blur(4px)' },
+  visible: {
+    opacity: 1, y: 0, filter: 'blur(0px)',
+    transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }
+  }
 };
 
 const userVariants = {
-  hidden: { opacity: 0, x: 8, y: 4 },
-  visible: { opacity: 1, x: 0, y: 0, transition: { duration: 0.2, ease: [0.16, 1, 0.3, 1] } }
+  hidden: { opacity: 0, y: 8 },
+  visible: {
+    opacity: 1, y: 0,
+    transition: { duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }
+  }
 };
 
 export default function MessageBubble({ message, onAction, isLatest = false }: MessageBubbleProps) {
@@ -98,106 +125,46 @@ export default function MessageBubble({ message, onAction, isLatest = false }: M
   if (isStella) {
     return (
       <motion.div
-        className="flex gap-3 group"
+        className="flex gap-3 group items-start mb-8"
         initial="hidden"
         animate="visible"
         variants={stellaVariants}
-        style={{ alignItems: 'flex-start', marginBottom: 'var(--space-message)' }}
       >
-        {/* Stella avatar — large terra circle with S + status indicator */}
-        <div style={{
-          flexShrink: 0,
-          width: 40,
-          height: 40,
-          position: 'relative',
-          marginTop: '2px',
-        }}>
-          <div style={{
-            width: 40,
-            height: 40,
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, #e08860 0%, #da7756 50%, #c4623f 100%)',
-            boxShadow: isLatest ? '0 0 16px rgba(218,119,86,0.5)' : '0 2px 8px rgba(0,0,0,0.3)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'box-shadow 0.5s ease',
-          }}>
-            <span style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: 'white',
-              letterSpacing: '-0.02em',
-              fontFamily: 'var(--font-display)',
-            }}>S</span>
+        {/* Stella avatar */}
+        <div className="flex-shrink-0 w-10 h-10 relative mt-0.5">
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center transition-shadow duration-500"
+            style={{
+              background: 'linear-gradient(135deg, #e08860 0%, #da7756 50%, #c4623f 100%)',
+              boxShadow: isLatest ? '0 0 16px rgba(218,119,86,0.5)' : '0 2px 8px rgba(0,0,0,0.3)',
+            }}
+          >
+            <span className="text-[16px] font-bold text-white tracking-tight">S</span>
           </div>
-          {/* Status + indicator */}
-          <div style={{
-            position: 'absolute',
-            bottom: -1,
-            right: -1,
-            width: 14,
-            height: 14,
-            borderRadius: '50%',
-            background: '#2b2a27',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: '2px solid #2b2a27',
-          }}>
-            <div style={{
-              width: 10,
-              height: 10,
-              borderRadius: '50%',
-              background: 'var(--color-cl-green)',
-              boxShadow: '0 0 6px rgba(74,222,128,0.5)',
-            }} />
+          {/* Online indicator */}
+          <div className="absolute -bottom-px -right-px w-3.5 h-3.5 rounded-full bg-background flex items-center justify-center border-2 border-background">
+            <div className="w-2.5 h-2.5 rounded-full bg-stella-green" style={{ boxShadow: '0 0 6px rgba(74,222,128,0.5)' }} />
           </div>
         </div>
 
         {/* Message body */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Header: name + time */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'baseline',
-            gap: '0.5rem',
-            marginBottom: '0.375rem'
-          }}>
-            <span style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: 'var(--color-cl-terra)',
-              letterSpacing: '0.01em',
-              fontFamily: 'var(--font-display)'
-            }}>Stella</span>
-            <span style={{
-              fontSize: 10,
-              color: 'var(--color-cl-text-muted)',
-              opacity: 0,
-              transition: 'opacity 0.2s ease',
-              fontFamily: 'var(--font-display)'
-            }} className="group-hover:opacity-100">{formatTime(message.timestamp)}</span>
+        <div className="flex-1 min-w-0">
+          {/* Header */}
+          <div className="flex items-baseline gap-2 mb-1.5">
+            <span className="text-xs font-semibold text-primary tracking-wide">Stella</span>
+            <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              {formatRelativeTime(message.timestamp)}
+            </span>
           </div>
 
           {/* Content */}
           {message.content && (
-            <div style={{
-              fontSize: 15,
-              lineHeight: 1.75,
-              color: 'var(--color-cl-text)',
-              fontFamily: 'var(--font-display)',
-              fontWeight: 400,
-              letterSpacing: '0.01em',
-            }}>
+            <div className="text-[15px] leading-[1.75] text-foreground tracking-[0.01em] whitespace-pre-wrap break-words">
               {renderContent(message.content)}
             </div>
           )}
 
-          {/* Action buttons */}
           {message.showActions && onAction && <ActionButtons onAction={onAction} />}
-
-          {/* Run progress card */}
           {message.showRunCard && message.pipelineType && (
             <RunProgressCard
               pipelineType={message.pipelineType}
@@ -205,8 +172,6 @@ export default function MessageBubble({ message, onAction, isLatest = false }: M
               runId={message.runId}
             />
           )}
-
-          {/* Chain progress card (sequential Both) */}
           {message.showChainCard && message.chainId && (
             <ChainProgressCard chainId={message.chainId} />
           )}
@@ -218,52 +183,25 @@ export default function MessageBubble({ message, onAction, isLatest = false }: M
   // User message
   return (
     <motion.div
-      className="flex justify-end group"
+      className="flex justify-end group mb-8"
       initial="hidden"
       animate="visible"
       variants={userVariants}
-      style={{ marginBottom: 'var(--space-message)' }}
     >
-      <div style={{ maxWidth: '72%', minWidth: 0 }}>
-        {/* Header: name + time (right-aligned) */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'baseline',
-          justifyContent: 'flex-end',
-          gap: '0.5rem',
-          marginBottom: '0.375rem'
-        }}>
-          <span style={{
-            fontSize: 10,
-            color: 'var(--color-cl-text-muted)',
-            opacity: 0,
-            transition: 'opacity 0.2s ease',
-            fontFamily: 'var(--font-display)'
-          }} className="group-hover:opacity-100">{formatTime(message.timestamp)}</span>
-          <span style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: 'var(--color-cl-text-muted)',
-            letterSpacing: '0.01em',
-            fontFamily: 'var(--font-display)'
-          }}>Shai</span>
+      <div className="max-w-[72%] min-w-0">
+        {/* Header */}
+        <div className="flex items-baseline justify-end gap-2 mb-1.5">
+          <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            {formatRelativeTime(message.timestamp)}
+          </span>
+          <span className="text-xs font-semibold text-stella-text-muted tracking-wide">Shai</span>
         </div>
 
         {/* Bubble */}
-        <div style={{
-          background: '#3a2820',
-          border: '1px solid rgba(218,119,86,0.15)',
-          borderRadius: '20px 6px 20px 20px',
-          padding: '0.75rem 1.15rem',
-          fontSize: 15,
-          lineHeight: 1.7,
-          color: 'var(--color-cl-text)',
-          fontFamily: 'var(--font-display)',
-          fontWeight: 400,
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          letterSpacing: '0.01em',
-        }}>
+        <div
+          className="px-[1.15rem] py-3 text-[15px] leading-[1.7] text-foreground whitespace-pre-wrap break-words tracking-[0.01em] bg-[#3a2820] border border-stella-terra-border"
+          style={{ borderRadius: '20px 6px 20px 20px' }}
+        >
           {message.content}
         </div>
       </div>

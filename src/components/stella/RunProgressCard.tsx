@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { PipelineStage } from './types';
 
-// SSE stage keys → display name mapping (matches server.ts STAGE_LABELS)
 const STAGE_LABEL_MAP: Record<string, string> = {
   clarification: 'Clarification',
   decomposition: 'Question decomposition',
@@ -48,7 +48,6 @@ function formatElapsed(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
-// Fuzzy match: normalize both to lowercase with underscores stripped
 function stageMatches(displayName: string, sseKey: string): boolean {
   const norm = (s: string) => s.toLowerCase().replace(/[\s_-]+/g, '');
   if (norm(displayName) === norm(sseKey)) return true;
@@ -62,7 +61,6 @@ async function fetchOutputs(runId: string): Promise<RunOutputs | null> {
     const res = await fetch(`/api/report/${runId}`);
     if (!res.ok) return null;
     const data = await res.json();
-    // /api/report/:runId returns { mode, pdf, docx, markdown, build_dir }
     return {
       md: data.markdown ?? undefined,
       pdf: data.pdf ?? undefined,
@@ -83,7 +81,6 @@ export default function RunProgressCard({ pipelineType, stages: initialStages, r
 
   useEffect(() => {
     if (!runId) return;
-
     const es = new EventSource(`/api/run/${runId}/stream`);
 
     es.onmessage = (event) => {
@@ -92,32 +89,19 @@ export default function RunProgressCard({ pipelineType, stages: initialStages, r
 
         if (data.type === 'stage_complete' && data.stage) {
           const elapsed = data.elapsed != null ? formatElapsed(data.elapsed) : undefined;
-
           setStages((prev) => {
-            // First: set ALL currently active stages to completed
             const updated = prev.map((s) => {
-              if (stageMatches(s.name, data.stage)) {
-                return { ...s, status: 'completed' as const, elapsed };
-              }
-              if (s.status === 'active') {
-                return { ...s, status: 'completed' as const };
-              }
+              if (stageMatches(s.name, data.stage)) return { ...s, status: 'completed' as const, elapsed };
+              if (s.status === 'active') return { ...s, status: 'completed' as const };
               return s;
             });
-
-            // If no existing stage matched the SSE key, add it
             const hasMatch = prev.some((s) => stageMatches(s.name, data.stage));
             if (!hasMatch) {
               const label = STAGE_LABEL_MAP[data.stage] ?? data.message ?? data.stage;
               updated.push({ name: label, status: 'completed', elapsed });
             }
-
-            // Mark only the next pending stage as active
             const nextPendingIdx = updated.findIndex((s) => s.status === 'pending');
-            if (nextPendingIdx !== -1) {
-              updated[nextPendingIdx] = { ...updated[nextPendingIdx], status: 'active' as const };
-            }
-
+            if (nextPendingIdx !== -1) updated[nextPendingIdx] = { ...updated[nextPendingIdx], status: 'active' as const };
             return updated;
           });
         }
@@ -127,170 +111,134 @@ export default function RunProgressCard({ pipelineType, stages: initialStages, r
           if (data.elapsed != null) setTotalElapsed(data.elapsed);
           if (data.cost != null) setTotalCost(data.cost);
           setStages((prev) => prev.map((s) =>
-            s.status === 'active' || s.status === 'pending'
-              ? { ...s, status: 'completed' as const }
-              : s
+            s.status === 'active' || s.status === 'pending' ? { ...s, status: 'completed' as const } : s
           ));
           es.close();
-          // Fetch download links
           if (runId) fetchOutputs(runId).then(setOutputs);
         }
 
-        if (data.type === 'run_failed') {
-          setRunStatus('failed');
-          es.close();
-        }
+        if (data.type === 'run_failed') { setRunStatus('failed'); es.close(); }
       } catch {}
     };
 
     es.onerror = () => es.close();
-
     return () => es.close();
   }, [runId]);
 
-  // Also check for already-completed runs (e.g. reconnecting to a finished run)
   useEffect(() => {
     if (!runId || runStatus !== 'completed' || outputs) return;
     fetchOutputs(runId).then(setOutputs);
   }, [runId, runStatus, outputs]);
 
   const isComplete = runStatus === 'completed';
+  const accentGradient = isComplete
+    ? 'linear-gradient(90deg, rgba(74,222,128,0.8) 0%, rgba(74,222,128,0.1) 100%)'
+    : 'linear-gradient(90deg, rgba(218,119,86,0.8) 0%, rgba(218,119,86,0.1) 100%)';
 
   return (
-    <div
-      className="rounded-xl flex flex-col mt-1"
-      style={{
-        background: 'var(--color-cl-surface)',
-        border: '1px solid var(--color-cl-border)',
-        borderRadius: '12px',
-        overflow: 'hidden',
-        marginTop: '0.75rem',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
-      }}
+    <motion.div
+      initial={{ opacity: 0, scale: 0.97, y: 8 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+      className="rounded-xl overflow-hidden mt-3 bg-stella-surface border border-stella-border shadow-lg"
     >
-      {/* Terra/green accent bar at top */}
-      <div style={{
-        height: '2px',
-        background: isComplete
-          ? 'linear-gradient(90deg, var(--color-cl-green) 0%, rgba(74,222,128,0.3) 100%)'
-          : 'linear-gradient(90deg, var(--color-cl-terra) 0%, rgba(218,119,86,0.3) 100%)',
-        transition: 'background 0.5s ease',
-      }} />
+      {/* Accent bar */}
+      <div className="h-0.5 transition-all duration-500" style={{ background: accentGradient }} />
 
       <div className="p-3.5 flex flex-col gap-2.5">
-      {/* Pipeline badge */}
-      <div className="flex items-center gap-2 mb-0.5">
-        <span
-          className={`text-[10px] font-mono px-2 py-0.5 rounded-[20px] ${
+        {/* Pipeline badge */}
+        <div className="flex items-center gap-2 mb-0.5">
+          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-[20px] ${
             pipelineType === 'research'
               ? 'bg-stella-terra-dim text-primary'
               : 'bg-stella-green-dim text-stella-green'
-          }`}
-        >
-          {pipelineType}
-        </span>
-      </div>
+          }`}>
+            {pipelineType}
+          </span>
+        </div>
 
-      {/* Stages */}
-      {stages.map((stage, i) => (
-        <div key={i} className="flex items-center gap-2.5"
-          style={{
-            padding: '0.25rem 0.5rem',
-            borderLeft: stage.status === 'active' ? '2px solid var(--color-cl-terra)' : '2px solid transparent',
-            transition: 'border-color 0.2s ease',
-          }}
-        >
-          {stage.status === 'completed' && <StarIcon />}
-          {stage.status === 'active' && (
-            <div className="w-2 h-2 rounded-full bg-primary animate-pulse-dot" />
-          )}
-          {stage.status === 'pending' && (
-            <div
-              className="w-2 h-2 rounded-full"
-              style={{ border: '1.5px solid rgba(255,255,255,0.15)' }}
-            />
-          )}
-
-          <span
-            className={`text-[13px] tracking-tight ${
-              stage.status === 'active'
-                ? 'text-foreground'
-                : stage.status === 'completed'
-                ? 'text-muted-foreground'
-                : 'text-stella-text-faint'
+        {/* Stages */}
+        {stages.map((stage, i) => (
+          <motion.div
+            key={i}
+            initial={stage.status === 'active' ? { opacity: 0, x: -8 } : false}
+            animate={{ opacity: 1, x: 0 }}
+            className={`flex items-center gap-2.5 px-2 py-1 transition-colors duration-200 border-l-2 ${
+              stage.status === 'active' ? 'border-l-primary' : 'border-l-transparent'
             }`}
           >
-            {stage.name}
-          </span>
+            {stage.status === 'completed' && <StarIcon />}
+            {stage.status === 'active' && <div className="w-2 h-2 rounded-full bg-primary animate-pulse-dot" />}
+            {stage.status === 'pending' && <div className="w-2 h-2 rounded-full border-[1.5px] border-white/15" />}
 
-          {stage.elapsed && (
-            <span className="text-[11px] font-mono text-stella-text-dim ml-auto">
-              {stage.elapsed}
+            <span className={`text-[13px] tracking-tight ${
+              stage.status === 'active' ? 'text-foreground' :
+              stage.status === 'completed' ? 'text-muted-foreground' :
+              'text-stella-text-faint'
+            }`}>
+              {stage.name}
             </span>
-          )}
-        </div>
-      ))}
 
-      {/* Completion footer */}
-      {runStatus === 'completed' && (
-        <div className="flex items-center justify-between border-t pt-2.5 mt-0.5" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-          <span className="text-[13px] text-stella-green">✓ Complete</span>
-          <div className="flex gap-3">
-            {totalCost != null && totalCost > 0 && (
-              <span className="text-[11px] font-mono text-stella-text-dim">${totalCost.toFixed(4)}</span>
+            {stage.elapsed && (
+              <span className="text-[11px] font-mono text-stella-text-dim ml-auto">{stage.elapsed}</span>
             )}
-            {totalElapsed != null && (
-              <span className="text-[11px] font-mono text-stella-text-dim">{formatElapsed(totalElapsed)}</span>
+          </motion.div>
+        ))}
+
+        {/* Completion footer */}
+        {runStatus === 'completed' && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center justify-between border-t border-stella-border pt-2.5 mt-0.5"
+          >
+            <span className="text-[13px] text-stella-green font-medium">✓ Complete</span>
+            <div className="flex gap-3">
+              {totalCost != null && totalCost > 0 && (
+                <span className="text-[11px] font-mono text-stella-text-dim">${totalCost.toFixed(4)}</span>
+              )}
+              {totalElapsed != null && (
+                <span className="text-[11px] font-mono text-stella-text-dim">{formatElapsed(totalElapsed)}</span>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Download buttons */}
+        {runStatus === 'completed' && outputs && (outputs.md || outputs.pdf || outputs.docx) && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="flex gap-2 mt-2 pt-2 border-t border-stella-border"
+          >
+            {outputs.md && (
+              <a href={`/api/download?path=${encodeURIComponent(outputs.md)}`} target="_blank" rel="noreferrer"
+                className="text-[11px] font-mono px-2.5 py-1 rounded-md text-stella-text-dim border border-stella-border hover:text-foreground hover:border-stella-border-strong transition-colors">
+                .md
+              </a>
             )}
+            {outputs.pdf && (
+              <a href={`/api/download?path=${encodeURIComponent(outputs.pdf)}`} target="_blank" rel="noreferrer"
+                className="text-[11px] font-mono px-2.5 py-1 rounded-md text-primary border border-stella-terra-border hover:bg-stella-terra-dim transition-colors">
+                PDF
+              </a>
+            )}
+            {outputs.docx && (
+              <a href={`/api/download?path=${encodeURIComponent(outputs.docx)}`} target="_blank" rel="noreferrer"
+                className="text-[11px] font-mono px-2.5 py-1 rounded-md text-stella-green border border-stella-green/20 hover:bg-stella-green-dim transition-colors">
+                DOCX
+              </a>
+            )}
+          </motion.div>
+        )}
+
+        {runStatus === 'failed' && (
+          <div className="border-t border-stella-border pt-2.5 mt-0.5">
+            <span className="text-[13px] text-destructive font-medium">✗ Run failed</span>
           </div>
-        </div>
-      )}
-
-      {/* Download buttons */}
-      {runStatus === 'completed' && outputs && (outputs.md || outputs.pdf || outputs.docx) && (
-        <div className="flex gap-2 mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-          {outputs.md && (
-            <a
-              href={`/api/download?path=${encodeURIComponent(outputs.md)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-[11px] font-mono px-2 py-1 rounded-md text-stella-text-dim hover:text-foreground transition-colors"
-              style={{ border: '1px solid rgba(255,255,255,0.08)' }}
-            >
-              .md
-            </a>
-          )}
-          {outputs.pdf && (
-            <a
-              href={`/api/download?path=${encodeURIComponent(outputs.pdf)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-[11px] font-mono px-2 py-1 rounded-md text-primary hover:opacity-80 transition-opacity"
-              style={{ border: '1px solid rgba(218,119,86,0.25)' }}
-            >
-              PDF
-            </a>
-          )}
-          {outputs.docx && (
-            <a
-              href={`/api/download?path=${encodeURIComponent(outputs.docx)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-[11px] font-mono px-2 py-1 rounded-md text-stella-green hover:opacity-80 transition-opacity"
-              style={{ border: '1px solid rgba(74,222,128,0.2)' }}
-            >
-              DOCX
-            </a>
-          )}
-        </div>
-      )}
-
-      {runStatus === 'failed' && (
-        <div className="border-t pt-2.5 mt-0.5" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-          <span className="text-[13px] text-destructive">✗ Run failed</span>
-        </div>
-      )}
+        )}
       </div>
-    </div>
+    </motion.div>
   );
 }

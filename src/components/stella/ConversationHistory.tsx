@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Plus, Search, FolderOpen, MoreHorizontal, Trash2, FolderInput, ChevronRight, Settings } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Conversation, Project } from './types';
 
 interface ConversationHistoryProps {
@@ -54,47 +55,31 @@ function ConvMenu({ convId, projects, onMove, onDelete, onClose }: {
     return () => document.removeEventListener('mousedown', h);
   }, [onClose]);
 
-  const itemStyle: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-    padding: '6px 10px', borderRadius: 6, fontSize: 12,
-    background: 'transparent', border: 'none', cursor: 'pointer',
-    fontFamily: 'var(--font-display)',
-  };
-
   return (
-    <div ref={ref} style={{
-      position: 'absolute', right: 8, top: '100%', marginTop: 2,
-      background: '#1f1e1b', border: '1px solid rgba(255,255,255,0.1)',
-      borderRadius: 8, padding: 4, zIndex: 60, minWidth: 170,
-      boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-    }}>
+    <div ref={ref} className="absolute right-2 top-full mt-0.5 bg-stella-surface border border-stella-border-strong rounded-lg p-1 z-[60] min-w-[170px] shadow-xl">
       <button onClick={() => setShowProjects(!showProjects)}
-        style={{ ...itemStyle, color: 'var(--color-cl-text-muted)' }}
-        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+        className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-md text-xs text-stella-text-muted hover:bg-white/5 transition-colors"
       >
-        <FolderInput size={13} /> Move to project <ChevronRight size={11} style={{ marginLeft: 'auto' }} />
+        <FolderInput size={13} /> Move to project <ChevronRight size={11} className="ml-auto" />
       </button>
-      {showProjects && (
-        <div style={{ padding: '2px 4px', borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 2 }}>
-          {projects.map(p => (
-            <button key={p.id} onClick={() => { onMove(convId, p.id); onClose(); }}
-              style={{ ...itemStyle, fontSize: 11, color: 'var(--color-cl-text-muted)' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >{p.name}</button>
-          ))}
-          <button onClick={() => { onMove(convId, null); onClose(); }}
-            style={{ ...itemStyle, fontSize: 11, color: 'var(--color-cl-text-dim)', fontStyle: 'italic' }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-          >Remove from project</button>
-        </div>
-      )}
+      <AnimatePresence>
+        {showProjects && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden border-t border-stella-border mt-0.5 pt-0.5"
+          >
+            {projects.map(p => (
+              <button key={p.id} onClick={() => { onMove(convId, p.id); onClose(); }}
+                className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-md text-[11px] text-stella-text-muted hover:bg-white/5 transition-colors"
+              >{p.name}</button>
+            ))}
+            <button onClick={() => { onMove(convId, null); onClose(); }}
+              className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-md text-[11px] text-stella-text-dim italic hover:bg-white/5 transition-colors"
+            >Remove from project</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <button onClick={() => { onDelete(convId); onClose(); }}
-        style={{ ...itemStyle, color: '#f87171' }}
-        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(248,113,113,0.08)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+        className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-md text-xs text-destructive hover:bg-destructive/10 transition-colors"
       >
         <Trash2 size={13} /> Delete
       </button>
@@ -141,31 +126,20 @@ export default function ConversationHistory({
   const renderConvItem = (conv: Conversation) => {
     const isActive = conv.id === activeId;
     return (
-      <div key={conv.id} style={{ position: 'relative' }} className="group/conv">
-        <button onClick={() => onSelect(conv.id)} style={{
-          display: 'block', width: '100%', textAlign: 'left',
-          padding: '8px 32px 8px 10px', borderRadius: 8,
-          background: isActive ? 'rgba(218,119,86,0.12)' : 'transparent',
-          border: 'none', cursor: 'pointer', transition: 'background 0.15s',
-        }}
-          onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-          onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+      <div key={conv.id} className="relative group/conv">
+        <button
+          onClick={() => onSelect(conv.id)}
+          className={`block w-full text-left px-2.5 py-2 rounded-lg transition-colors duration-150 ${
+            isActive ? 'bg-stella-terra-dim' : 'hover:bg-white/[0.04]'
+          }`}
         >
-          <div style={{
-            fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: isActive ? 500 : 400,
-            color: isActive ? 'var(--color-cl-text)' : 'var(--color-cl-text-muted)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>{conv.title}</div>
+          <div className={`text-[13px] truncate ${
+            isActive ? 'text-foreground font-medium' : 'text-stella-text-muted'
+          }`}>{conv.title}</div>
         </button>
         <button
           onClick={e => { e.stopPropagation(); setMenuOpen(menuOpen === conv.id ? null : conv.id); }}
-          style={{
-            position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            opacity: 0, transition: 'opacity 0.15s', padding: 4, borderRadius: 4,
-            color: 'var(--color-cl-text-dim)',
-          }}
-          className="group-hover/conv:!opacity-100"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-stella-text-dim opacity-0 group-hover/conv:opacity-100 hover:bg-white/5 transition-all"
         >
           <MoreHorizontal size={14} />
         </button>
@@ -177,125 +151,97 @@ export default function ConversationHistory({
   };
 
   return (
-    <div style={{
-      width: 260, flexShrink: 0, height: '100vh',
-      backgroundColor: '#141311', borderRight: '1px solid rgba(255,255,255,0.06)',
-      display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)',
-    }}>
+    <div className="w-[260px] flex-shrink-0 h-screen bg-stella-sidebar border-r border-stella-border flex flex-col">
       {/* Top */}
-      <div style={{ padding: '14px 12px 8px' }}>
-        <button onClick={onNewChat} style={{
-          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          padding: '9px 0', borderRadius: 10,
-          background: 'var(--color-cl-terra)', border: 'none',
-          color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          fontFamily: 'var(--font-display)', transition: 'filter 0.15s',
-        }}
-          onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
-          onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
+      <div className="px-3 pt-3.5 pb-2">
+        <button
+          onClick={onNewChat}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-white text-[13px] font-semibold hover:brightness-110 transition-all active:scale-[0.98]"
         >
           <Plus size={15} strokeWidth={2.5} /> New chat
         </button>
-        <div style={{ position: 'relative', marginTop: 10 }}>
-          <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-cl-text-dim)' }} />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search conversations..."
-            style={{
-              width: '100%', padding: '7px 10px 7px 30px', borderRadius: 8,
-              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)',
-              color: 'var(--color-cl-text)', fontSize: 12, fontFamily: 'var(--font-display)', outline: 'none',
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'rgba(218,119,86,0.3)')}
-            onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)')}
+        <div className="relative mt-2.5">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stella-text-dim" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search conversations..."
+            className="w-full py-[7px] pl-8 pr-2.5 rounded-lg bg-white/[0.04] border border-stella-border text-foreground text-xs outline-none focus:border-stella-terra-border transition-colors placeholder:text-stella-text-dim"
           />
         </div>
       </div>
 
-      {/* Scrollable */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px' }}>
+      {/* Scrollable list */}
+      <div className="flex-1 overflow-y-auto px-2">
         {/* Projects */}
-        <div style={{ marginBottom: 4 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 6px 4px' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-cl-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Projects</span>
-            <button onClick={() => setShowNewProject(true)} style={{
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              color: 'var(--color-cl-text-dim)', padding: 2, borderRadius: 4,
-            }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-cl-terra)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-cl-text-dim)')}
+        <div className="mb-1">
+          <div className="flex items-center justify-between px-1.5 pt-2 pb-1">
+            <span className="text-[11px] font-semibold text-stella-text-dim uppercase tracking-wider">Projects</span>
+            <button
+              onClick={() => setShowNewProject(true)}
+              className="p-0.5 rounded text-stella-text-dim hover:text-primary transition-colors"
             ><Plus size={13} /></button>
           </div>
-          {showNewProject && (
-            <div style={{ padding: '2px 4px 6px' }}>
-              <input ref={npRef} value={newProjectName} onChange={e => setNewProjectName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleCreateProject(); if (e.key === 'Escape') setShowNewProject(false); }}
-                placeholder="Project name..." style={{
-                  width: '100%', padding: '6px 8px', borderRadius: 6,
-                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(218,119,86,0.3)',
-                  color: 'var(--color-cl-text)', fontSize: 12, fontFamily: 'var(--font-display)', outline: 'none',
-                }}
-              />
-            </div>
-          )}
+          <AnimatePresence>
+            {showNewProject && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden px-1 pb-1.5">
+                <input ref={npRef} value={newProjectName} onChange={e => setNewProjectName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleCreateProject(); if (e.key === 'Escape') setShowNewProject(false); }}
+                  placeholder="Project name..."
+                  className="w-full py-1.5 px-2 rounded-md bg-white/[0.04] border border-stella-terra-border text-foreground text-xs outline-none"
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
           {projects.map(p => {
             const isExp = expandedProjects.has(p.id);
             const pConvs = projectConvs.get(p.id) || [];
             return (
               <div key={p.id}>
-                <button onClick={() => onOpenProject ? onOpenProject(p.id) : toggleProject(p.id)} style={{
-                  display: 'flex', alignItems: 'center', gap: 6, width: '100%',
-                  padding: '7px 8px', borderRadius: 8, background: 'transparent',
-                  border: 'none', cursor: 'pointer', transition: 'background 0.15s',
-                  color: 'var(--color-cl-text-muted)', fontSize: 13, fontFamily: 'var(--font-display)',
-                }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                <button
+                  onClick={() => onOpenProject ? onOpenProject(p.id) : toggleProject(p.id)}
+                  className="flex items-center gap-1.5 w-full py-[7px] px-2 rounded-lg text-stella-text-muted text-[13px] hover:bg-white/[0.04] transition-colors"
                 >
-                  <ChevronRight size={12} style={{ transition: 'transform 0.15s', transform: isExp ? 'rotate(90deg)' : 'none' }} />
-                  <FolderOpen size={14} style={{ color: 'var(--color-cl-terra)', opacity: 0.7 }} />
-                  <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                  <span style={{ fontSize: 10, color: 'var(--color-cl-text-dim)' }}>{pConvs.length}</span>
+                  <ChevronRight size={12} className={`transition-transform duration-150 ${isExp ? 'rotate-90' : ''}`} />
+                  <FolderOpen size={14} className="text-primary/70" />
+                  <span className="flex-1 text-left truncate">{p.name}</span>
+                  <span className="text-[10px] text-stella-text-dim">{pConvs.length}</span>
                 </button>
-                {isExp && pConvs.length > 0 && <div style={{ paddingLeft: 16 }}>{pConvs.map(renderConvItem)}</div>}
+                {isExp && pConvs.length > 0 && <div className="pl-4">{pConvs.map(renderConvItem)}</div>}
               </div>
             );
           })}
           {projects.length === 0 && !showNewProject && (
-            <div style={{ padding: '4px 8px 8px', fontSize: 11, color: 'var(--color-cl-text-dim)', opacity: 0.6 }}>
-              Click + to create a project
-            </div>
+            <div className="px-2 py-1 text-[11px] text-stella-text-dim/60">Click + to create a project</div>
           )}
         </div>
 
         {/* Date-grouped conversations */}
         {groups.map(g => (
-          <div key={g.label} style={{ marginBottom: 4 }}>
-            <div style={{
-              fontSize: 11, fontWeight: 600, color: 'var(--color-cl-text-dim)',
-              textTransform: 'uppercase', letterSpacing: '0.05em', padding: '8px 6px 4px',
-            }}>{g.label}</div>
+          <div key={g.label} className="mb-1">
+            <div className="text-[11px] font-semibold text-stella-text-dim uppercase tracking-wider px-1.5 pt-2 pb-1">
+              {g.label}
+            </div>
             {g.items.map(renderConvItem)}
           </div>
         ))}
 
         {filtered.length === 0 && (
-          <div style={{ padding: '20px 10px', textAlign: 'center', fontSize: 12, color: 'var(--color-cl-text-dim)' }}>
-            {search ? 'No matches' : 'No conversations yet'}
+          <div className="py-5 px-2.5 text-center text-xs text-stella-text-dim">
+            {search ? 'No matches' : 'Start a new chat with Stella'}
           </div>
         )}
       </div>
 
       {/* Bottom: Settings */}
-      <div style={{ padding: '8px 12px 12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <button onClick={() => onViewChange('settings')} style={{
-          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-          padding: '8px 10px', borderRadius: 8,
-          background: activeView === 'settings' ? 'rgba(218,119,86,0.12)' : 'transparent',
-          border: 'none', cursor: 'pointer', transition: 'background 0.15s',
-          color: activeView === 'settings' ? 'var(--color-cl-terra)' : 'var(--color-cl-text-dim)',
-          fontSize: 13, fontFamily: 'var(--font-display)',
-        }}
-          onMouseEnter={e => { if (activeView !== 'settings') e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-          onMouseLeave={e => { if (activeView !== 'settings') e.currentTarget.style.background = 'transparent'; }}
+      <div className="px-3 py-2.5 border-t border-stella-border">
+        <button
+          onClick={() => onViewChange('settings')}
+          className={`flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-[13px] transition-colors duration-150 ${
+            activeView === 'settings'
+              ? 'bg-stella-terra-dim text-primary'
+              : 'text-stella-text-dim hover:bg-white/[0.04]'
+          }`}
         >
           <Settings size={15} /> Settings
         </button>
