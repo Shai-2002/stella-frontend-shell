@@ -174,21 +174,78 @@ const Index = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, history, conversation_id: convId || undefined }),
       });
-      const data = await res.json();
-      const runId = data.run_id || data.runId;
 
-      if (runId) {
-        const stellaMsg: Message = { id: (Date.now() + 1).toString(), role: 'stella', content: data.content, timestamp: nowTimestamp() };
-        const runMsg: Message = {
-          id: (Date.now() + 2).toString(), role: 'stella', content: '', timestamp: nowTimestamp(),
-          showRunCard: true, pipelineType: data.intent === 'BUILD' ? 'build' : 'research', runId,
-        };
-        setMessages((prev) => [...prev, stellaMsg, runMsg]);
-        if (convId) saveMessageToDb(convId, 'stella', data.content, { intent: data.intent, run_id: runId });
+      const contentType = res.headers.get('Content-Type') || '';
+
+      if (contentType.includes('text/event-stream')) {
+        // ── SSE streaming response (CONVERSE / MEMORY) ──
+        const msgId = (Date.now() + 1).toString();
+        setMessages((prev) => [...prev, { id: msgId, role: 'stella', content: '', timestamp: nowTimestamp() }]);
+        setIsThinking(false);
+
+        const reader = res.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullContent = '';
+        let streamIntent = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.intent) {
+                  streamIntent = data.intent;
+                } else if (data.token) {
+                  fullContent += data.token;
+                  setMessages((prev) =>
+                    prev.map((m) => m.id === msgId ? { ...m, content: fullContent } : m)
+                  );
+                } else if (data.done) {
+                  // Stream complete
+                }
+              } catch {}
+            }
+          }
+        }
+
+        if (convId) saveMessageToDb(convId, 'stella', fullContent, { intent: streamIntent });
+
       } else {
-        const stellaMsg: Message = { id: (Date.now() + 1).toString(), role: 'stella', content: data.content, timestamp: nowTimestamp() };
-        setMessages((prev) => [...prev, stellaMsg]);
-        if (convId) saveMessageToDb(convId, 'stella', data.content, { intent: data.intent, action: data.action });
+        // ── JSON response (pipeline triggers, CONFIRM, etc.) ──
+        const data = await res.json();
+        const runId = data.run_id || data.runId;
+        const chainId = data.chain_id;
+
+        if (chainId) {
+          const stellaMsg: Message = { id: (Date.now() + 1).toString(), role: 'stella', content: data.content, timestamp: nowTimestamp() };
+          const chainMsg: Message = {
+            id: (Date.now() + 2).toString(), role: 'stella', content: '', timestamp: nowTimestamp(),
+            showChainCard: true, chainId,
+          };
+          setMessages((prev) => [...prev, stellaMsg, chainMsg]);
+          if (convId) saveMessageToDb(convId, 'stella', data.content, { intent: data.intent, chain_id: chainId });
+        } else if (runId) {
+          const stellaMsg: Message = { id: (Date.now() + 1).toString(), role: 'stella', content: data.content, timestamp: nowTimestamp() };
+          const runMsg: Message = {
+            id: (Date.now() + 2).toString(), role: 'stella', content: '', timestamp: nowTimestamp(),
+            showRunCard: true, pipelineType: data.intent === 'BUILD' ? 'build' : 'research', runId,
+          };
+          setMessages((prev) => [...prev, stellaMsg, runMsg]);
+          if (convId) saveMessageToDb(convId, 'stella', data.content, { intent: data.intent, run_id: runId });
+        } else {
+          const showActions = data.action === 'CONFIRM' || data.action === 'CLARIFY_MODE';
+          const stellaMsg: Message = { id: (Date.now() + 1).toString(), role: 'stella', content: data.content, timestamp: nowTimestamp(), showActions };
+          setMessages((prev) => [...prev, stellaMsg]);
+          if (convId) saveMessageToDb(convId, 'stella', data.content, { intent: data.intent, action: data.action });
+        }
       }
     } catch (err) {
       console.error('[handleSend] error:', err);
