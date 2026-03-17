@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useUser } from '@clerk/clerk-react';
 import ConversationHistory from '@/components/stella/ConversationHistory';
 import Topbar from '@/components/stella/Topbar';
 import ChatView from '@/components/stella/ChatView';
@@ -8,6 +9,7 @@ import SettingsView from '@/components/stella/SettingsView';
 import ProjectWorkspace from '@/components/stella/ProjectWorkspace';
 import { Message, Conversation, Project } from '@/components/stella/types';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useAuthFetch } from '@/hooks/use-auth-fetch';
 
 const API = '/api';
 
@@ -28,28 +30,10 @@ function nowTimestamp(): string {
   return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-async function saveMessageToDb(convId: string, role: string, content: string, metadata?: Record<string, unknown>) {
-  try {
-    await fetch(`${API}/conversations/${convId}/messages`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role, content, metadata: metadata ?? null }),
-    });
-  } catch {}
-}
-
-async function patchConversation(convId: string, data: Record<string, unknown>) {
-  try {
-    await fetch(`${API}/conversations/${convId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-  } catch {}
-}
-
 const Index = () => {
   const isMobile = useIsMobile();
+  const authFetch = useAuthFetch();
+  const { user } = useUser();
   const [activeView, setActiveView] = useState<'chat' | 'settings'>('chat');
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
@@ -60,16 +44,42 @@ const Index = () => {
   const [isThinking, setIsThinking] = useState(false);
   const isFirstUserMsg = useRef(true);
   const activeConvRef = useRef<string | null>(null);
+  // Store authFetch in a ref so helper functions can access it
+  const fetchRef = useRef(authFetch);
+  fetchRef.current = authFetch;
+
+  // Check if current user is the owner (for showing admin link, etc.)
+  const isOwner = user?.primaryEmailAddress?.emailAddress === 'shaivignesh.2002@gmail.com';
 
   useEffect(() => {
     activeConvRef.current = activeConversationId;
   }, [activeConversationId]);
 
+  async function saveMessageToDb(convId: string, role: string, content: string, metadata?: Record<string, unknown>) {
+    try {
+      await fetchRef.current(`${API}/conversations/${convId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role, content, metadata: metadata ?? null }),
+      });
+    } catch {}
+  }
+
+  async function patchConversation(convId: string, data: Record<string, unknown>) {
+    try {
+      await fetchRef.current(`${API}/conversations/${convId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+    } catch {}
+  }
+
   // Load conversations + projects on mount
   useEffect(() => {
     Promise.all([
-      fetch(`${API}/conversations`).then(r => r.json()).catch(() => ({ conversations: [] })),
-      fetch(`${API}/projects`).then(r => r.json()).catch(() => ({ projects: [] })),
+      authFetch(`${API}/conversations`).then(r => r.json()).catch(() => ({ conversations: [] })),
+      authFetch(`${API}/projects`).then(r => r.json()).catch(() => ({ projects: [] })),
     ]).then(([convData, projData]) => {
       if (projData.projects) setProjects(projData.projects);
       if (convData.conversations?.length > 0) {
@@ -91,7 +101,7 @@ const Index = () => {
 
   async function loadConversation(convId: string) {
     try {
-      const res = await fetch(`${API}/conversations/${convId}/messages`);
+      const res = await fetchRef.current(`${API}/conversations/${convId}/messages`);
       const data = await res.json();
       if (data.messages?.length > 0) {
         setMessages(
@@ -117,7 +127,7 @@ const Index = () => {
   async function ensureConversation(projectId?: string): Promise<string> {
     if (activeConvRef.current) return activeConvRef.current;
     try {
-      const res = await fetch(`${API}/conversations`, { method: 'POST' });
+      const res = await fetchRef.current(`${API}/conversations`, { method: 'POST' });
       const conv = await res.json();
       const newConv: Conversation = {
         id: conv.id,
@@ -126,7 +136,6 @@ const Index = () => {
         updated_at: new Date().toISOString(),
         project_id: projectId ?? undefined,
       };
-      // If creating inside a project, assign project_id
       if (projectId) {
         patchConversation(conv.id, { project_id: projectId });
       }
@@ -169,7 +178,7 @@ const Index = () => {
         content: m.content,
       }));
 
-      const res = await fetch('/api/chat', {
+      const res = await fetchRef.current('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, history, conversation_id: convId || undefined }),
@@ -271,7 +280,7 @@ const Index = () => {
   const handleAction = useCallback(async (action: 'research' | 'build' | 'both') => {
     setMessages((prev) => prev.map((m) => ({ ...m, showActions: false })));
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetchRef.current('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -318,7 +327,7 @@ const Index = () => {
 
   const handleCreateProject = useCallback(async (name: string) => {
     try {
-      const res = await fetch(`${API}/projects`, {
+      const res = await fetchRef.current(`${API}/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
@@ -348,7 +357,7 @@ const Index = () => {
 
   const handleDeleteConversation = useCallback(async (id: string) => {
     try {
-      await fetch(`${API}/conversations/${id}`, { method: 'DELETE' });
+      await fetchRef.current(`${API}/conversations/${id}`, { method: 'DELETE' });
       setConversationList((prev) => prev.filter((c) => c.id !== id));
       if (activeConvRef.current === id) {
         activeConvRef.current = null;
@@ -422,6 +431,7 @@ const Index = () => {
       onDeleteConversation={handleDeleteConversation}
       onViewChange={handleViewChange}
       onOpenProject={handleOpenProject}
+      isOwner={isOwner}
     />
   );
 
@@ -459,6 +469,7 @@ const Index = () => {
           activeView={activeView}
           showMobileMenu={isMobile}
           onMobileMenuToggle={() => setMobileSidebarOpen((p) => !p)}
+          isOwner={isOwner}
         />
 
         {activeView === 'chat' ? (

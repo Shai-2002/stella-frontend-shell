@@ -1,13 +1,15 @@
 import { Menu } from 'lucide-react';
+import { UserButton } from '@clerk/clerk-react';
 
 interface TopbarProps {
   onClearChat: () => void;
   activeView: 'chat' | 'settings';
   showMobileMenu?: boolean;
   onMobileMenuToggle?: () => void;
+  isOwner?: boolean;
 }
 
-export default function Topbar({ onClearChat, activeView, showMobileMenu, onMobileMenuToggle }: TopbarProps) {
+export default function Topbar({ onClearChat, activeView, showMobileMenu, onMobileMenuToggle, isOwner }: TopbarProps) {
   return (
     <div className="h-12 flex items-center px-6 border-b border-stella-border flex-shrink-0">
       {/* Mobile hamburger */}
@@ -31,6 +33,28 @@ export default function Topbar({ onClearChat, activeView, showMobileMenu, onMobi
           Clear chat
         </button>
       )}
+
+      {isOwner && (
+        <a
+          href="/admin"
+          className="ml-3 text-[11px] font-mono px-3 py-1 rounded-md border transition-colors"
+          style={{ color: '#da7756', borderColor: 'rgba(218,119,86,0.3)' }}
+          onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(218,119,86,0.6)')}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(218,119,86,0.3)')}
+        >
+          Admin
+        </a>
+      )}
+
+      <div className="ml-3">
+        <UserButton
+          appearance={{
+            elements: {
+              avatarBox: { width: 28, height: 28 },
+            },
+          }}
+        />
+      </div>
     </div>
   );
 }

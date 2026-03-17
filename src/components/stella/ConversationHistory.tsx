@@ -14,6 +14,7 @@ interface ConversationHistoryProps {
   onDeleteConversation: (id: string) => void;
   onViewChange: (view: 'chat' | 'settings') => void;
   onOpenProject?: (projectId: string) => void;
+  isOwner?: boolean;
 }
 
 function isToday(d: Date): boolean {
@@ -103,7 +104,7 @@ function ConvMenu({ convId, projects, onMove, onDelete, onClose }: {
 
 export default function ConversationHistory({
   conversations, projects, activeId, activeView,
-  onSelect, onNewChat, onCreateProject, onMoveToProject, onDeleteConversation, onViewChange, onOpenProject,
+  onSelect, onNewChat, onCreateProject, onMoveToProject, onDeleteConversation, onViewChange, onOpenProject, isOwner,
 }: ConversationHistoryProps) {
   const [search, setSearch] = useState('');
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
