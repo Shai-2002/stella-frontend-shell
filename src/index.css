@@ -116,21 +116,19 @@
     font-family: var(--font-mono);
   }
 
-  /* Custom scrollbar — 4px, warm tones */
+  /* Custom scrollbar — minimal, cockpit feel */
   ::-webkit-scrollbar {
-    width: 4px;
+    width: 3px;
   }
   ::-webkit-scrollbar-track {
-    background: #3a3a36;
-    border-radius: 2px;
+    background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #5a5a55;
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 2px;
-    transition: background 0.15s;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #da7756;
+    background: rgba(218, 119, 86, 0.4);
   }
 
   /* Text selection — terra colored */
@@ -140,15 +138,12 @@
   }
 }
 
+/* Tighter line height for message names */
+.message-meta {
+  letter-spacing: -0.01em;
+}
+
 /* Smooth scroll */
 html {
   scroll-behavior: smooth;
-}
-
-/* Global micro-interaction: all buttons get subtle scale feedback */
-button, a[role="button"], [role="button"] {
-  transition: transform 0.1s ease, opacity 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-button:active, a[role="button"]:active {
-  transform: scale(0.97);
 }

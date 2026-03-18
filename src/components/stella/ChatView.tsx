@@ -21,27 +21,27 @@ export default function ChatView({ messages, onAction, isThinking }: ChatViewPro
 
   return (
     <div className="flex-1 overflow-y-auto py-8 scroll-smooth">
-      <div className="max-w-[800px] mx-auto px-8">
+      <div className="max-w-[860px] mx-auto px-8">
         {/* Empty state — welcome */}
         {isEmpty && (
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+            transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
             className="flex flex-col items-center justify-center min-h-[50vh] text-center"
           >
             <div
-              className="w-12 h-12 rounded-full flex items-center justify-center mb-4"
+              className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
               style={{
                 background: 'linear-gradient(135deg, #e08860 0%, #da7756 50%, #c4623f 100%)',
-                boxShadow: '0 0 24px rgba(218,119,86,0.2)',
+                boxShadow: '0 0 32px rgba(218,119,86,0.3)',
               }}
             >
-              <span className="text-lg font-bold text-white">S</span>
+              <span className="text-2xl font-bold text-white">S</span>
             </div>
-            <h2 className="text-lg font-medium text-foreground mb-1.5">Hey, what are you working on?</h2>
-            <p className="text-[13px] text-stella-text-muted max-w-sm">
-              Ask me anything, start a research run, or kick off a build.
+            <h2 className="text-xl font-semibold text-foreground mb-2">Hey, what are you working on?</h2>
+            <p className="text-sm text-stella-text-muted max-w-md">
+              Ask me anything, start a research run, or kick off a build. I'm here.
             </p>
           </motion.div>
         )}
@@ -54,27 +54,25 @@ export default function ChatView({ messages, onAction, isThinking }: ChatViewPro
               message={msg}
               onAction={onAction}
               isLatest={i === messages.length - 1 && msg.role === 'stella'}
-              prevRole={i > 0 ? messages[i - 1].role : null}
             />
           ))}
         </AnimatePresence>
 
-        {/* Typing indicator — iMessage-style dots */}
+        {/* Typing indicator */}
         <AnimatePresence>
           {isThinking && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ duration: 0.15 }}
-              className="mt-5"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              className="mb-8"
             >
               <TypingIndicator />
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div ref={bottomRef} className="h-4" />
+        <div ref={bottomRef} className="h-px" />
       </div>
     </div>
   );
