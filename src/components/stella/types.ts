@@ -58,3 +58,22 @@ export interface OllamaModel {
   size: string;
   status: 'active' | 'inactive';
 }
+
+export interface Task {
+  id: string;
+  title: string;
+  status: 'pending' | 'in_progress' | 'done';
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface PipelineStatus {
+  runId: string;
+  topic: string;
+  stage: number;
+  totalStages: number;
+  stageName: string;
+  status: 'running' | 'complete' | 'failed' | 'idle';
+  elapsed: number;
+  cost: number;
+}
