@@ -373,15 +373,15 @@ const Index = () => {
     if (isMobile) setMobileSidebarOpen(false);
   }, [isMobile]);
 
-  const handleDocumentUploaded = useCallback((id: string, filename: string, msg: string) => {
+  const handleDocumentUploaded = useCallback((id: string, filename: string, _msg: string) => {
     const uploadMsg: Message = {
       id: Date.now().toString(), role: 'stella',
-      content: `Got "${filename}". ${msg}\n\nOnce indexed, you can ask me to validate it, summarize it, research more around it, or build from it.`,
+      content: `Got it.`,
       timestamp: nowTimestamp(),
     };
     setMessages(prev => [...prev, uploadMsg]);
     const convId = activeConvRef.current;
-    if (convId) saveMessageToDb(convId, 'stella', uploadMsg.content, { document_id: id });
+    if (convId) saveMessageToDb(convId, 'stella', `Got "${filename}".`, { document_id: id });
   }, []);
 
   const handleNewChatInProject = useCallback(async () => {
@@ -472,17 +472,35 @@ const Index = () => {
           isOwner={isOwner}
         />
 
-        {activeView === 'chat' ? (
-          <>
-            <ChatView messages={messages} onAction={handleAction} isThinking={isThinking} />
-            <Composer
-              onSend={handleSend}
-              onDocumentUploaded={handleDocumentUploaded}
-            />
-          </>
-        ) : (
-          <SettingsView />
-        )}
+        <AnimatePresence mode="wait">
+          {activeView === 'chat' ? (
+            <motion.div
+              key="chat"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="flex flex-col flex-1 min-w-0"
+            >
+              <ChatView messages={messages} onAction={handleAction} isThinking={isThinking} />
+              <Composer
+                onSend={handleSend}
+                onDocumentUploaded={handleDocumentUploaded}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="settings"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="flex flex-col flex-1 min-w-0"
+            >
+              <SettingsView />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

@@ -128,7 +128,7 @@ export default function SettingsView() {
           <div className="rounded-xl p-4 space-y-3 bg-white/[0.02] border border-stella-border">
             {models.map((model, i) => (
               <div key={i} className="flex items-center gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-stella-green animate-pulse-dot" />
+                <div className="w-1.5 h-1.5 rounded-full bg-stella-green" />
                 <span className="text-[13px] text-foreground">{model.name}</span>
                 <span className="text-[11px] font-mono text-stella-text-dim ml-auto">{model.size}</span>
               </div>
@@ -143,7 +143,7 @@ export default function SettingsView() {
 
         {/* Section 4: Personality & Learning */}
         <section>
-          <h2 className="text-[11px] uppercase tracking-widest text-stella-text-muted font-semibold mb-4">
+          <h2 className="text-[11px] uppercase tracking-widest text-stella-text-dim font-medium mb-4">
             Personality & Learning
           </h2>
 

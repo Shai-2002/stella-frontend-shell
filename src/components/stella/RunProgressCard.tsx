@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Check, Loader2 } from 'lucide-react';
 import { PipelineStage } from './types';
 
 const STAGE_LABEL_MAP: Record<string, string> = {
@@ -34,12 +35,6 @@ interface RunOutputs {
   docx?: string;
   build_dir?: string;
 }
-
-const StarIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="hsl(16, 64%, 58%)" opacity={0.7}>
-    <path d="M6 0l1.5 4.5L12 6l-4.5 1.5L6 12l-1.5-4.5L0 6l4.5-1.5z" />
-  </svg>
-);
 
 function formatElapsed(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
@@ -78,6 +73,19 @@ export default function RunProgressCard({ pipelineType, stages: initialStages, r
   const [totalElapsed, setTotalElapsed] = useState<number | null>(null);
   const [totalCost, setTotalCost] = useState<number | null>(null);
   const [outputs, setOutputs] = useState<RunOutputs | null>(null);
+  const [progressPct, setProgressPct] = useState(0);
+  const [stageProgress, setStageProgress] = useState('');
+  const elapsedRef = useRef(0);
+
+  // Live elapsed timer
+  useEffect(() => {
+    if (runStatus !== 'running') return;
+    const timer = setInterval(() => {
+      elapsedRef.current += 1;
+      setTotalElapsed(elapsedRef.current);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [runStatus]);
 
   useEffect(() => {
     if (!runId) return;
@@ -89,6 +97,13 @@ export default function RunProgressCard({ pipelineType, stages: initialStages, r
 
         if (data.type === 'stage_complete' && data.stage) {
           const elapsed = data.elapsed != null ? formatElapsed(data.elapsed) : undefined;
+
+          // Update progress from SSE data
+          if (data.progress_pct != null) setProgressPct(data.progress_pct);
+          if (data.stage_index != null && data.total_stages != null) {
+            setStageProgress(`${data.stage_index}/${data.total_stages}`);
+          }
+
           setStages((prev) => {
             const updated = prev.map((s) => {
               if (stageMatches(s.name, data.stage)) return { ...s, status: 'completed' as const, elapsed };
@@ -108,6 +123,7 @@ export default function RunProgressCard({ pipelineType, stages: initialStages, r
 
         if (data.type === 'run_complete') {
           setRunStatus('completed');
+          setProgressPct(100);
           if (data.elapsed != null) setTotalElapsed(data.elapsed);
           if (data.cost != null) setTotalCost(data.cost);
           setStages((prev) => prev.map((s) =>
@@ -131,69 +147,107 @@ export default function RunProgressCard({ pipelineType, stages: initialStages, r
   }, [runId, runStatus, outputs]);
 
   const isComplete = runStatus === 'completed';
-  const accentGradient = isComplete
-    ? 'linear-gradient(90deg, rgba(74,222,128,0.8) 0%, rgba(74,222,128,0.1) 100%)'
-    : 'linear-gradient(90deg, rgba(218,119,86,0.8) 0%, rgba(218,119,86,0.1) 100%)';
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.97, y: 8 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="rounded-xl overflow-hidden mt-3 bg-stella-surface border border-stella-border shadow-lg"
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+      className="rounded-xl mt-4 border border-white/[0.06] overflow-hidden"
+      style={{ background: '#1f1e1b' }}
     >
-      {/* Accent bar */}
-      <div className="h-0.5 transition-all duration-500" style={{ background: accentGradient }} />
-
-      <div className="p-3.5 flex flex-col gap-2.5">
-        {/* Pipeline badge */}
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-[20px] ${
-            pipelineType === 'research'
-              ? 'bg-stella-terra-dim text-primary'
-              : 'bg-stella-green-dim text-stella-green'
-          }`}>
-            {pipelineType}
-          </span>
+      <div className="px-5 py-4">
+        {/* Header: badge + elapsed */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2.5">
+            <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full ${
+              pipelineType === 'research'
+                ? 'bg-stella-terra-dim text-primary'
+                : 'bg-stella-green-dim text-stella-green'
+            }`}>
+              {pipelineType === 'research' ? 'Research' : 'Build'}
+            </span>
+            {stageProgress && !isComplete && (
+              <span className="text-[11px] font-mono text-stella-text-dim">{stageProgress}</span>
+            )}
+          </div>
+          {totalElapsed != null && (
+            <span className="text-[11px] font-mono text-stella-text-dim">{formatElapsed(totalElapsed)}</span>
+          )}
         </div>
 
+        {/* Overall progress bar */}
+        {!isComplete && (
+          <div className="h-[2px] rounded-full bg-white/[0.04] mb-4 overflow-hidden">
+            <motion.div
+              className="h-full rounded-full bg-primary"
+              initial={{ width: 0 }}
+              animate={{ width: `${progressPct}%` }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+            />
+          </div>
+        )}
+
         {/* Stages */}
-        {stages.map((stage, i) => (
-          <motion.div
-            key={i}
-            initial={stage.status === 'active' ? { opacity: 0, x: -8 } : false}
-            animate={{ opacity: 1, x: 0 }}
-            className={`flex items-center gap-2.5 px-2 py-1 transition-colors duration-200 border-l-2 ${
-              stage.status === 'active' ? 'border-l-primary' : 'border-l-transparent'
-            }`}
-          >
-            {stage.status === 'completed' && <StarIcon />}
-            {stage.status === 'active' && <div className="w-2 h-2 rounded-full bg-primary animate-pulse-dot" />}
-            {stage.status === 'pending' && <div className="w-2 h-2 rounded-full border-[1.5px] border-white/15" />}
+        <div className="space-y-0.5">
+          {stages.map((stage, i) => (
+            <div
+              key={i}
+              className={`flex items-center gap-2.5 py-1.5 px-1 rounded-md transition-all duration-200 ${
+                stage.status === 'active' ? 'bg-white/[0.02]' : ''
+              }`}
+            >
+              {/* Status icon */}
+              <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+                <AnimatePresence mode="wait">
+                  {stage.status === 'completed' && (
+                    <motion.div
+                      key="check"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.1, ease: 'easeOut' }}
+                    >
+                      <Check size={13} className="text-stella-green" strokeWidth={2.5} />
+                    </motion.div>
+                  )}
+                  {stage.status === 'active' && (
+                    <Loader2 size={13} className="text-primary animate-spin" />
+                  )}
+                  {stage.status === 'pending' && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-white/[0.12]" />
+                  )}
+                </AnimatePresence>
+              </div>
 
-            <span className={`text-[13px] tracking-tight ${
-              stage.status === 'active' ? 'text-foreground' :
-              stage.status === 'completed' ? 'text-muted-foreground' :
-              'text-stella-text-faint'
-            }`}>
-              {stage.name}
-            </span>
+              {/* Stage name */}
+              <span className={`text-[13px] transition-colors duration-200 ${
+                stage.status === 'active' ? 'text-foreground' :
+                stage.status === 'completed' ? 'text-stella-text-muted' :
+                'text-stella-text-faint'
+              }`}>
+                {stage.name}
+              </span>
 
-            {stage.elapsed && (
-              <span className="text-[11px] font-mono text-stella-text-dim ml-auto">{stage.elapsed}</span>
-            )}
-          </motion.div>
-        ))}
+              {/* Elapsed time */}
+              {stage.elapsed && (
+                <span className="text-[11px] font-mono text-stella-text-dim ml-auto">{stage.elapsed}</span>
+              )}
+            </div>
+          ))}
+        </div>
 
         {/* Completion footer */}
-        {runStatus === 'completed' && (
+        {isComplete && (
           <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-center justify-between border-t border-stella-border pt-2.5 mt-0.5"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className="flex items-center justify-between border-t border-white/[0.06] pt-3 mt-3"
           >
-            <span className="text-[13px] text-stella-green font-medium">✓ Complete</span>
-            <div className="flex gap-3">
+            <span className="text-[13px] text-stella-green font-medium flex items-center gap-1.5">
+              <Check size={14} strokeWidth={2.5} /> Complete
+            </span>
+            <div className="flex items-center gap-3">
               {totalCost != null && totalCost > 0 && (
                 <span className="text-[11px] font-mono text-stella-text-dim">${totalCost.toFixed(4)}</span>
               )}
@@ -205,37 +259,37 @@ export default function RunProgressCard({ pipelineType, stages: initialStages, r
         )}
 
         {/* Download buttons */}
-        {runStatus === 'completed' && outputs && (outputs.md || outputs.pdf || outputs.docx) && (
+        {isComplete && outputs && (outputs.md || outputs.pdf || outputs.docx) && (
           <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="flex gap-2 mt-2 pt-2 border-t border-stella-border"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="flex gap-2 mt-3 pt-3 border-t border-white/[0.06]"
           >
-            {outputs.md && (
-              <a href={`/api/download?path=${encodeURIComponent(outputs.md)}`} target="_blank" rel="noreferrer"
-                className="text-[11px] font-mono px-2.5 py-1 rounded-md text-stella-text-dim border border-stella-border hover:text-foreground hover:border-stella-border-strong transition-colors">
-                .md
-              </a>
-            )}
             {outputs.pdf && (
               <a href={`/api/download?path=${encodeURIComponent(outputs.pdf)}`} target="_blank" rel="noreferrer"
-                className="text-[11px] font-mono px-2.5 py-1 rounded-md text-primary border border-stella-terra-border hover:bg-stella-terra-dim transition-colors">
+                className="text-[11px] font-mono px-3 py-1.5 rounded-full text-primary border border-stella-terra-border hover:bg-stella-terra-dim transition-colors duration-150">
                 PDF
               </a>
             )}
             {outputs.docx && (
               <a href={`/api/download?path=${encodeURIComponent(outputs.docx)}`} target="_blank" rel="noreferrer"
-                className="text-[11px] font-mono px-2.5 py-1 rounded-md text-stella-green border border-stella-green/20 hover:bg-stella-green-dim transition-colors">
+                className="text-[11px] font-mono px-3 py-1.5 rounded-full text-stella-green border border-stella-green/20 hover:bg-stella-green-dim transition-colors duration-150">
                 DOCX
+              </a>
+            )}
+            {outputs.md && (
+              <a href={`/api/download?path=${encodeURIComponent(outputs.md)}`} target="_blank" rel="noreferrer"
+                className="text-[11px] font-mono px-3 py-1.5 rounded-full text-stella-text-dim border border-stella-border hover:text-foreground hover:border-stella-border-strong transition-colors duration-150">
+                .md
               </a>
             )}
           </motion.div>
         )}
 
         {runStatus === 'failed' && (
-          <div className="border-t border-stella-border pt-2.5 mt-0.5">
-            <span className="text-[13px] text-destructive font-medium">✗ Run failed</span>
+          <div className="border-t border-white/[0.06] pt-3 mt-3">
+            <span className="text-[13px] text-destructive font-medium">Run failed</span>
           </div>
         )}
       </div>
