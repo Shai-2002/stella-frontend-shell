@@ -7,6 +7,7 @@ import ChatView from '@/components/stella/ChatView';
 import Composer from '@/components/stella/Composer';
 import SettingsView from '@/components/stella/SettingsView';
 import ProjectWorkspace from '@/components/stella/ProjectWorkspace';
+import FilesSidebar from '@/components/stella/FilesSidebar';
 import { Message, Conversation, Project } from '@/components/stella/types';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuthFetch } from '@/hooks/use-auth-fetch';
@@ -41,6 +42,7 @@ const Index = () => {
   const [conversationList, setConversationList] = useState<Conversation[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [isFilesPanelOpen, setIsFilesPanelOpen] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const isFirstUserMsg = useRef(true);
   const activeConvRef = useRef<string | null>(null);
@@ -496,6 +498,8 @@ const Index = () => {
           showMobileMenu={isMobile}
           onMobileMenuToggle={() => setMobileSidebarOpen((p) => !p)}
           isOwner={isOwner}
+          onToggleFiles={() => setIsFilesPanelOpen(p => !p)}
+          isFilesPanelOpen={isFilesPanelOpen}
         />
 
         {activeView === 'chat' ? (
@@ -510,6 +514,17 @@ const Index = () => {
           <SettingsView />
         )}
       </div>
+
+      {/* Files panel — slides in from right */}
+      <AnimatePresence>
+        {isFilesPanelOpen && activeView === 'chat' && (
+          <FilesSidebar
+            isOpen={isFilesPanelOpen}
+            onClose={() => setIsFilesPanelOpen(false)}
+            projectId={activeProject?.id}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

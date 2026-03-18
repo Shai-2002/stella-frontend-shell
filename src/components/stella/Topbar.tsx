@@ -1,4 +1,4 @@
-import { Menu } from 'lucide-react';
+import { Menu, PanelRight } from 'lucide-react';
 import { UserButton } from '@clerk/clerk-react';
 
 interface TopbarProps {
@@ -7,9 +7,11 @@ interface TopbarProps {
   showMobileMenu?: boolean;
   onMobileMenuToggle?: () => void;
   isOwner?: boolean;
+  onToggleFiles?: () => void;
+  isFilesPanelOpen?: boolean;
 }
 
-export default function Topbar({ onClearChat, activeView, showMobileMenu, onMobileMenuToggle, isOwner }: TopbarProps) {
+export default function Topbar({ onClearChat, activeView, showMobileMenu, onMobileMenuToggle, isOwner, onToggleFiles, isFilesPanelOpen }: TopbarProps) {
   return (
     <div className="h-12 flex items-center px-6 border-b border-stella-border flex-shrink-0">
       {/* Mobile hamburger */}
@@ -26,12 +28,27 @@ export default function Topbar({ onClearChat, activeView, showMobileMenu, onMobi
       <div className="flex-1" />
 
       {activeView === 'chat' && (
-        <button
-          onClick={onClearChat}
-          className="text-[11px] font-mono text-stella-text-dim px-3 py-1 rounded-md border border-stella-border hover:border-stella-border-strong hover:text-stella-text-muted transition-colors"
-        >
-          Clear chat
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onClearChat}
+            className="text-[11px] font-mono text-stella-text-dim px-3 py-1 rounded-md border border-stella-border hover:border-stella-border-strong hover:text-stella-text-muted transition-colors"
+          >
+            Clear chat
+          </button>
+          {onToggleFiles && (
+            <button
+              onClick={onToggleFiles}
+              className={`p-1.5 rounded-md border transition-colors ${
+                isFilesPanelOpen
+                  ? 'border-stella-terra-border text-primary bg-stella-terra-dim'
+                  : 'border-stella-border text-stella-text-dim hover:border-stella-border-strong hover:text-stella-text-muted'
+              }`}
+              title="Toggle files panel"
+            >
+              <PanelRight size={14} />
+            </button>
+          )}
+        </div>
       )}
 
       {isOwner && (
