@@ -3,9 +3,6 @@ import { motion } from 'framer-motion';
 import { Copy, Check } from 'lucide-react';
 import { Message } from './types';
 import ActionButtons from './ActionButtons';
-import RunProgressCard from './RunProgressCard';
-import ChainProgressCard from './ChainProgressCard';
-import { researchStages, buildStages } from './mockData';
 
 interface MessageBubbleProps {
   message: Message;
@@ -145,7 +142,6 @@ export default function MessageBubble({ message, onAction, isLatest = false }: M
         )}
 
         {message.showActions && onAction && <ActionButtons onAction={onAction} />}
-        {/* Pipeline status moved to RightSidebar — inline cards removed */}
       </motion.div>
     );
   }
