@@ -145,16 +145,7 @@ export default function MessageBubble({ message, onAction, isLatest = false }: M
         )}
 
         {message.showActions && onAction && <ActionButtons onAction={onAction} />}
-        {message.showRunCard && message.pipelineType && (
-          <RunProgressCard
-            pipelineType={message.pipelineType}
-            stages={message.pipelineType === 'research' ? researchStages : buildStages}
-            runId={message.runId}
-          />
-        )}
-        {message.showChainCard && message.chainId && (
-          <ChainProgressCard chainId={message.chainId} />
-        )}
+        {/* Pipeline status moved to RightSidebar — inline cards removed */}
       </motion.div>
     );
   }

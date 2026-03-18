@@ -7,8 +7,8 @@ import ChatView from '@/components/stella/ChatView';
 import Composer from '@/components/stella/Composer';
 import SettingsView from '@/components/stella/SettingsView';
 import ProjectWorkspace from '@/components/stella/ProjectWorkspace';
-import FilesSidebar from '@/components/stella/FilesSidebar';
-import { Message, Conversation, Project } from '@/components/stella/types';
+import RightSidebar from '@/components/stella/RightSidebar';
+import { Message, Conversation, Project, PipelineStatus } from '@/components/stella/types';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuthFetch } from '@/hooks/use-auth-fetch';
 
@@ -44,6 +44,8 @@ const Index = () => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isFilesPanelOpen, setIsFilesPanelOpen] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
+  const [researchStatus, setResearchStatus] = useState<PipelineStatus | null>(null);
+  const [buildStatus, setBuildStatus] = useState<PipelineStatus | null>(null);
   const isFirstUserMsg = useRef(true);
   const activeConvRef = useRef<string | null>(null);
   // Store authFetch in a ref so helper functions can access it
@@ -56,6 +58,46 @@ const Index = () => {
   useEffect(() => {
     activeConvRef.current = activeConversationId;
   }, [activeConversationId]);
+
+  // Connect to pipeline SSE and track status in sidebar
+  const trackPipelineRun = useCallback((runId: string, mode: 'research' | 'build', topic: string) => {
+    const totalStages = mode === 'research' ? 8 : 8;
+    const setStatus = mode === 'research' ? setResearchStatus : setBuildStatus;
+    setStatus({ runId, topic, stage: 0, totalStages, stageName: 'Starting', status: 'running', elapsed: 0, cost: 0 });
+    setIsFilesPanelOpen(true); // auto-open sidebar
+
+    const es = new EventSource(`/api/run/${runId}/stream`);
+    es.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'stage_complete') {
+          setStatus(prev => prev ? {
+            ...prev,
+            stage: (data.stage_index ?? prev.stage + 1),
+            stageName: data.stage || data.message || prev.stageName,
+            elapsed: data.elapsed ?? prev.elapsed,
+            cost: data.cost ?? prev.cost,
+          } : prev);
+        }
+        if (data.type === 'run_complete') {
+          setStatus(prev => prev ? {
+            ...prev,
+            status: 'complete',
+            stage: prev.totalStages,
+            stageName: 'Complete',
+            elapsed: data.elapsed ?? prev.elapsed,
+            cost: data.cost ?? prev.cost,
+          } : prev);
+          es.close();
+        }
+        if (data.type === 'run_failed') {
+          setStatus(prev => prev ? { ...prev, status: 'failed', stageName: 'Failed' } : prev);
+          es.close();
+        }
+      } catch {}
+    };
+    es.onerror = () => es.close();
+  }, []);
 
   async function saveMessageToDb(convId: string, role: string, content: string, metadata?: Record<string, unknown>) {
     try {
@@ -236,21 +278,19 @@ const Index = () => {
         const chainId = data.chain_id;
 
         if (chainId) {
+          // Pipeline status moved to RightSidebar — just show text message
           const stellaMsg: Message = { id: (Date.now() + 1).toString(), role: 'stella', content: data.content, timestamp: nowTimestamp() };
-          const chainMsg: Message = {
-            id: (Date.now() + 2).toString(), role: 'stella', content: '', timestamp: nowTimestamp(),
-            showChainCard: true, chainId,
-          };
-          setMessages((prev) => [...prev, stellaMsg, chainMsg]);
+          setMessages((prev) => [...prev, stellaMsg]);
           if (convId) saveMessageToDb(convId, 'stella', data.content, { intent: data.intent, chain_id: chainId });
+          // Track research phase of chain in sidebar
+          trackPipelineRun(chainId, 'research', data.content?.slice(0, 60) || 'Sequential run');
         } else if (runId) {
+          // Pipeline status moved to RightSidebar — just show text message
+          const mode = data.intent === 'BUILD' ? 'build' : 'research';
           const stellaMsg: Message = { id: (Date.now() + 1).toString(), role: 'stella', content: data.content, timestamp: nowTimestamp() };
-          const runMsg: Message = {
-            id: (Date.now() + 2).toString(), role: 'stella', content: '', timestamp: nowTimestamp(),
-            showRunCard: true, pipelineType: data.intent === 'BUILD' ? 'build' : 'research', runId,
-          };
-          setMessages((prev) => [...prev, stellaMsg, runMsg]);
+          setMessages((prev) => [...prev, stellaMsg]);
           if (convId) saveMessageToDb(convId, 'stella', data.content, { intent: data.intent, run_id: runId });
+          trackPipelineRun(runId, mode as 'research' | 'build', data.content?.slice(0, 60) || `${mode} run`);
         } else {
           const showActions = data.action === 'CONFIRM' || data.action === 'CLARIFY_MODE';
           const stellaMsg: Message = { id: (Date.now() + 1).toString(), role: 'stella', content: data.content, timestamp: nowTimestamp(), showActions };
@@ -296,15 +336,15 @@ const Index = () => {
       const chainId = data.chain_id;
       const ts = nowTimestamp();
       const confirmMsg: Message = { id: Date.now().toString(), role: 'stella', content: data.content || `Starting ${action} run.`, timestamp: ts };
-      const newMessages: Message[] = [confirmMsg];
-      if (chainId) {
-        newMessages.push({ id: (Date.now() + 1).toString(), role: 'stella', content: '', timestamp: ts, showChainCard: true, chainId });
-      } else if (runId) {
-        newMessages.push({ id: (Date.now() + 1).toString(), role: 'stella', content: '', timestamp: ts, showRunCard: true, pipelineType: action === 'build' ? 'build' : 'research', runId });
-      }
-      setMessages((prev) => [...prev, ...newMessages]);
+      setMessages((prev) => [...prev, confirmMsg]);
       const convId = activeConvRef.current;
       if (convId) saveMessageToDb(convId, 'stella', confirmMsg.content, { intent: action.toUpperCase(), run_id: runId, chain_id: chainId });
+      // Track pipeline in sidebar
+      if (chainId) {
+        trackPipelineRun(chainId, 'research', confirmMsg.content.slice(0, 60));
+      } else if (runId) {
+        trackPipelineRun(runId, action === 'build' ? 'build' : 'research', confirmMsg.content.slice(0, 60));
+      }
     } catch (err) {
       console.error('[handleAction] error:', err);
       setMessages((prev) => [...prev, { id: Date.now().toString(), role: 'stella', content: 'Failed to start the pipeline. Check the console.', timestamp: nowTimestamp() }]);
@@ -382,6 +422,7 @@ const Index = () => {
       timestamp: nowTimestamp(),
     };
     setMessages(prev => [...prev, uploadMsg]);
+    setIsFilesPanelOpen(true); // auto-open sidebar to show file
     const convId = activeConvRef.current;
     if (convId) saveMessageToDb(convId, 'stella', uploadMsg.content, { document_id: id });
   }, []);
@@ -418,6 +459,20 @@ const Index = () => {
       }
     }
   }, [activeProject]);
+
+  // Drag-and-drop file upload handler for ChatView
+  const handleFileDrop = useCallback(async (file: File) => {
+    setIsFilesPanelOpen(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetchRef.current(`${API}/documents/upload`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success && data.documentId) {
+        handleDocumentUploaded(data.documentId, data.filename || file.name, data.message || '');
+      }
+    } catch (err) { console.error('Drag-drop upload failed', err); }
+  }, [handleDocumentUploaded]);
 
   const handleProjectUpdated = useCallback((updated: Project) => {
     setProjects(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
@@ -504,7 +559,7 @@ const Index = () => {
 
         {activeView === 'chat' ? (
           <>
-            <ChatView messages={messages} onAction={handleAction} isThinking={isThinking} />
+            <ChatView messages={messages} onAction={handleAction} isThinking={isThinking} onFileDrop={handleFileDrop} />
             <Composer
               onSend={handleSend}
               onDocumentUploaded={handleDocumentUploaded}
@@ -515,13 +570,18 @@ const Index = () => {
         )}
       </div>
 
-      {/* Files panel — slides in from right */}
+      {/* Right sidebar — files + pipeline status */}
       <AnimatePresence>
         {isFilesPanelOpen && activeView === 'chat' && (
-          <FilesSidebar
+          <RightSidebar
             isOpen={isFilesPanelOpen}
             onClose={() => setIsFilesPanelOpen(false)}
             projectId={activeProject?.id}
+            projectName={activeProject?.name}
+            projectInstructions={activeProject?.instructions}
+            researchStatus={researchStatus}
+            buildStatus={buildStatus}
+            onFileUploaded={handleDocumentUploaded}
           />
         )}
       </AnimatePresence>
