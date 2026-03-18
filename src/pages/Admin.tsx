@@ -27,77 +27,8 @@ export default function Admin() {
   const email = user?.primaryEmailAddress?.emailAddress;
   const isOwner = email === OWNER_EMAIL;
 
-  if (!isOwner) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background text-destructive">
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold mb-2">Access Denied</h2>
-          <p className="text-stella-text-muted">This page is only accessible to the owner.</p>
-          <a href="/" className="text-primary mt-4 inline-block hover:underline">← Back to Stella</a>
-        </div>
-      </div>
-    );
-  }
-
-  const handleVerify = async () => {
-    if (!password.trim()) { setError('Enter a password'); return; }
-    setVerifying(true);
-    setError('');
-    try {
-      const res = await authFetch('/api/admin/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': password },
-      });
-      if (res.ok) {
-        setAuthenticated(true);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error || `Wrong password (${res.status})`);
-      }
-    } catch (err: any) {
-      console.error('[Admin verify]', err);
-      setError(`Connection failed: ${err.message || 'network error'}`);
-    } finally {
-      setVerifying(false);
-    }
-  };
-
-  if (!authenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="bg-card border border-stella-border rounded-xl p-8 w-[340px]">
-          <h2 className="text-primary text-xl font-semibold mb-1">Admin Access</h2>
-          <p className="text-stella-text-dim text-[13px] mb-5">Enter the admin password to continue.</p>
-          <input
-            type="password"
-            value={password}
-            onChange={e => { setPassword(e.target.value); setError(''); }}
-            onKeyDown={e => { if (e.key === 'Enter') handleVerify(); }}
-            placeholder="Admin password..."
-            autoFocus
-            className={`w-full px-3 py-2.5 rounded-lg bg-background border text-foreground text-sm font-mono outline-none transition-colors ${
-              error ? 'border-destructive/40' : 'border-stella-border focus:border-stella-terra-border'
-            }`}
-          />
-          {error && <p className="text-destructive text-xs mt-2">{error}</p>}
-          <button
-            onClick={handleVerify}
-            disabled={verifying}
-            className={`w-full mt-3 py-2.5 rounded-lg text-sm font-semibold text-white transition-all ${
-              verifying ? 'bg-primary/60 cursor-wait' : 'bg-primary hover:brightness-110 cursor-pointer'
-            }`}
-          >
-            {verifying ? 'Verifying...' : 'Verify'}
-          </button>
-          <a href="/" className="block text-center text-stella-text-dim text-xs mt-4 hover:text-stella-text-muted transition-colors">
-            ← Back to Stella
-          </a>
-        </div>
-      </div>
-    );
-  }
-
   const fetchTabData = useCallback(async (tab: Tab) => {
+    if (!authenticated) return;
     const headers: Record<string, string> = { 'X-Admin-Secret': password };
     try {
       switch (tab) {
@@ -144,10 +75,85 @@ export default function Admin() {
     } catch (err) {
       console.error(`Failed to fetch ${tab}:`, err);
     }
-  }, [authFetch, password, logSearch]);
+  }, [authFetch, password, logSearch, authenticated]);
 
-  useEffect(() => { fetchTabData(activeTab); }, [activeTab, fetchTabData]);
+  useEffect(() => {
+    if (authenticated) fetchTabData(activeTab);
+  }, [activeTab, fetchTabData, authenticated]);
 
+  const handleVerify = async () => {
+    if (!password.trim()) { setError('Enter a password'); return; }
+    setVerifying(true);
+    setError('');
+    try {
+      const res = await authFetch('/api/admin/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': password },
+      });
+      if (res.ok) {
+        setAuthenticated(true);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || `Wrong password (${res.status})`);
+      }
+    } catch (err: any) {
+      console.error('[Admin verify]', err);
+      setError(`Connection failed: ${err.message || 'network error'}`);
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  // ── Access Denied screen ──
+  if (!isOwner) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-destructive">
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold mb-2">Access Denied</h2>
+          <p className="text-stella-text-muted">This page is only accessible to the owner.</p>
+          <a href="/" className="text-primary mt-4 inline-block hover:underline">← Back to Stella</a>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Password screen ──
+  if (!authenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="bg-card border border-stella-border rounded-xl p-8 w-[340px]">
+          <h2 className="text-primary text-xl font-semibold mb-1">Admin Access</h2>
+          <p className="text-stella-text-dim text-[13px] mb-5">Enter the admin password to continue.</p>
+          <input
+            type="password"
+            value={password}
+            onChange={e => { setPassword(e.target.value); setError(''); }}
+            onKeyDown={e => { if (e.key === 'Enter') handleVerify(); }}
+            placeholder="Admin password..."
+            autoFocus
+            className={`w-full px-3 py-2.5 rounded-lg bg-background border text-foreground text-sm font-mono outline-none transition-colors ${
+              error ? 'border-destructive/40' : 'border-stella-border focus:border-stella-terra-border'
+            }`}
+          />
+          {error && <p className="text-destructive text-xs mt-2">{error}</p>}
+          <button
+            onClick={handleVerify}
+            disabled={verifying}
+            className={`w-full mt-3 py-2.5 rounded-lg text-sm font-semibold text-white transition-all ${
+              verifying ? 'bg-primary/60 cursor-wait' : 'bg-primary hover:brightness-110 cursor-pointer'
+            }`}
+          >
+            {verifying ? 'Verifying...' : 'Verify'}
+          </button>
+          <a href="/" className="block text-center text-stella-text-dim text-xs mt-4 hover:text-stella-text-muted transition-colors">
+            ← Back to Stella
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Admin Dashboard ──
   const tabs: { id: Tab; label: string }[] = [
     { id: 'runs', label: 'Pipeline Runs' },
     { id: 'health', label: 'Service Health' },

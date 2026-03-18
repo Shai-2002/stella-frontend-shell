@@ -385,11 +385,37 @@ const Index = () => {
   }, []);
 
   const handleNewChatInProject = useCallback(async () => {
+    // Clear current state
     activeConvRef.current = null;
     setActiveConversationId(null);
     isFirstUserMsg.current = true;
     setMessages([]);
-  }, []);
+
+    // Create conversation on server with project_id
+    if (activeProject) {
+      try {
+        const res = await fetchRef.current(`${API}/conversations`, { method: 'POST' });
+        const conv = await res.json();
+        await fetchRef.current(`${API}/conversations/${conv.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_id: activeProject.id }),
+        });
+        const newConv: Conversation = {
+          id: conv.id,
+          title: conv.title || 'New conversation',
+          timestamp: 'just now',
+          updated_at: new Date().toISOString(),
+          project_id: activeProject.id,
+        };
+        activeConvRef.current = conv.id;
+        setActiveConversationId(conv.id);
+        setConversationList((prev) => [newConv, ...prev]);
+      } catch (err) {
+        console.error('[handleNewChatInProject] failed:', err);
+      }
+    }
+  }, [activeProject]);
 
   const handleProjectUpdated = useCallback((updated: Project) => {
     setProjects(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Plus, FileText, Upload, ChevronRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, FileText, Upload, ChevronRight, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Project, ProjectFile, Conversation, Message } from './types';
 import { useAuthFetch } from '@/hooks/use-auth-fetch';
@@ -7,6 +7,8 @@ import ChatView from './ChatView';
 import Composer from './Composer';
 
 const API = '/api';
+const POLL_INTERVAL = 3000; // 3 seconds
+const TERMINAL_STATUSES = ['ready', 'failed'];
 
 interface ProjectWorkspaceProps {
   project: Project;
@@ -43,12 +45,74 @@ export default function ProjectWorkspace({
     setInstructionsValue(project.instructions ?? '');
   }, [project.id]);
 
+  // Fetch files on mount / project change, then poll any still-processing docs
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fetchRef = useRef(authFetch);
+  fetchRef.current = authFetch;
+
+  const refreshFileStatuses = useCallback(async (currentFiles: ProjectFile[]) => {
+    const pending = currentFiles.filter(f => !TERMINAL_STATUSES.includes(f.status));
+    if (pending.length === 0) return currentFiles;
+
+    const updated = await Promise.all(
+      pending.map(async (f) => {
+        try {
+          const res = await fetchRef.current(`${API}/documents/${f.id}`);
+          const doc = await res.json();
+          return { id: f.id, status: doc.status as string };
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    let changed = false;
+    const next = currentFiles.map(f => {
+      const u = updated.find(x => x && x.id === f.id);
+      if (u && u.status !== f.status) { changed = true; return { ...f, status: u.status }; }
+      return f;
+    });
+    return changed ? next : currentFiles;
+  }, []);
+
   useEffect(() => {
+    // Clear any existing poll timer when project changes
+    if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+
     authFetch(`${API}/projects/${project.id}/files`)
       .then(r => r.json())
-      .then(data => setFiles(data.files ?? []))
+      .then(async (data) => {
+        let fileList: ProjectFile[] = data.files ?? [];
+        // Immediately refresh statuses for any stale data
+        fileList = await refreshFileStatuses(fileList);
+        setFiles(fileList);
+        // Start polling if any files are still processing
+        startPolling(fileList);
+      })
       .catch(() => {});
-  }, [project.id, authFetch]);
+
+    return () => { if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; } };
+  }, [project.id, authFetch, refreshFileStatuses]);
+
+  const startPolling = useCallback((currentFiles: ProjectFile[]) => {
+    if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+    const hasPending = currentFiles.some(f => !TERMINAL_STATUSES.includes(f.status));
+    if (!hasPending) return;
+
+    pollTimerRef.current = setInterval(async () => {
+      setFiles(prev => {
+        // Trigger async refresh — we update via the callback in the then()
+        refreshFileStatuses(prev).then(next => {
+          if (next !== prev) setFiles(next);
+          // Stop polling once all terminal
+          if (!next.some(f => !TERMINAL_STATUSES.includes(f.status))) {
+            if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+          }
+        });
+        return prev; // return unchanged for this sync call
+      });
+    }, POLL_INTERVAL);
+  }, [refreshFileStatuses]);
 
   useEffect(() => { if (editingName) nameRef.current?.focus(); }, [editingName]);
 
@@ -88,11 +152,16 @@ export default function ProjectWorkspace({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ project_id: project.id, scope: 'project' }),
         });
-        setFiles(prev => [{
+        const newFile: ProjectFile = {
           id: data.documentId, original_name: file.name,
           file_type: file.name.split('.').pop() ?? '', status: 'processing',
           scope: 'project', uploaded_at: new Date().toISOString(),
-        }, ...prev]);
+        };
+        setFiles(prev => {
+          const next = [newFile, ...prev];
+          startPolling(next);
+          return next;
+        });
       }
     } catch (err) { console.error('Project file upload failed', err); }
     finally { setIsUploading(false); }
@@ -238,7 +307,13 @@ export default function ProjectWorkspace({
               <FileText size={14} className="text-primary/70 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-xs text-foreground truncate">{file.original_name}</div>
-                <div className="text-[10px] text-stella-text-dim">{file.file_type.toUpperCase()} · {file.status}</div>
+                <div className="text-[10px] text-stella-text-dim flex items-center gap-1">
+                  {file.file_type.toUpperCase()} ·{' '}
+                  {file.status === 'processing' && <><Loader2 size={9} className="animate-spin text-primary" /> <span className="text-primary">Processing</span></>}
+                  {file.status === 'ready' && <><CheckCircle2 size={9} className="text-stella-green" /> <span className="text-stella-green">Ready</span></>}
+                  {file.status === 'failed' && <><AlertCircle size={9} className="text-destructive" /> <span className="text-destructive">Failed</span></>}
+                  {!['processing', 'ready', 'failed'].includes(file.status) && <span>{file.status}</span>}
+                </div>
               </div>
               <button onClick={() => toggleFileScope(file.id, file.scope)}
                 className={`text-[9px] px-1.5 py-0.5 rounded border whitespace-nowrap transition-colors ${

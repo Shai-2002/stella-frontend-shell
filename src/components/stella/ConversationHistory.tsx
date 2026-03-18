@@ -156,7 +156,7 @@ export default function ConversationHistory({
       <div className="px-3 pt-3.5 pb-2">
         <button
           onClick={onNewChat}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-white text-[13px] font-semibold hover:brightness-110 transition-all active:scale-[0.98]"
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-stella-border-strong text-stella-text-muted text-[13px] font-medium hover:bg-white/[0.04] hover:text-foreground transition-all active:scale-[0.98]"
         >
           <Plus size={15} strokeWidth={2.5} /> New chat
         </button>

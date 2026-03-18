@@ -117,7 +117,7 @@ export default function Composer({ onSend, onTranscript, onDocumentUploaded }: C
   const hasText = text.trim().length > 0;
 
   return (
-    <div className="px-6 pt-3 pb-4 flex-shrink-0">
+    <div className="px-6 pt-3 pb-4 flex-shrink-0 max-w-[720px] mx-auto w-full">
       {/* Upload status banners */}
       <AnimatePresence>
         {isUploading && (

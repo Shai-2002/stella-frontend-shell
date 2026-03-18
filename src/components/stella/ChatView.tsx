@@ -21,27 +21,18 @@ export default function ChatView({ messages, onAction, isThinking }: ChatViewPro
 
   return (
     <div className="flex-1 overflow-y-auto py-8 scroll-smooth">
-      <div className="max-w-[860px] mx-auto px-8">
+      <div className="max-w-[720px] mx-auto px-6">
         {/* Empty state — welcome */}
         {isEmpty && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+            transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
             className="flex flex-col items-center justify-center min-h-[50vh] text-center"
           >
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
-              style={{
-                background: 'linear-gradient(135deg, #e08860 0%, #da7756 50%, #c4623f 100%)',
-                boxShadow: '0 0 32px rgba(218,119,86,0.3)',
-              }}
-            >
-              <span className="text-2xl font-bold text-white">S</span>
-            </div>
-            <h2 className="text-xl font-semibold text-foreground mb-2">Hey, what are you working on?</h2>
-            <p className="text-sm text-stella-text-muted max-w-md">
-              Ask me anything, start a research run, or kick off a build. I'm here.
+            <h2 className="text-2xl font-medium text-foreground mb-2">What are you working on?</h2>
+            <p className="text-[14px] text-stella-text-muted max-w-sm leading-relaxed">
+              Ask anything, start a research run, or kick off a build.
             </p>
           </motion.div>
         )}

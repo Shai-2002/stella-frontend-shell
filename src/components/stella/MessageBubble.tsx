@@ -125,83 +125,58 @@ export default function MessageBubble({ message, onAction, isLatest = false }: M
   if (isStella) {
     return (
       <motion.div
-        className="flex gap-3 group items-start mb-8"
+        className="group mb-6"
         initial="hidden"
         animate="visible"
         variants={stellaVariants}
       >
-        {/* Stella avatar */}
-        <div className="flex-shrink-0 w-10 h-10 relative mt-0.5">
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center transition-shadow duration-500"
-            style={{
-              background: 'linear-gradient(135deg, #e08860 0%, #da7756 50%, #c4623f 100%)',
-              boxShadow: isLatest ? '0 0 16px rgba(218,119,86,0.5)' : '0 2px 8px rgba(0,0,0,0.3)',
-            }}
-          >
-            <span className="text-[16px] font-bold text-white tracking-tight">S</span>
-          </div>
-          {/* Online indicator */}
-          <div className="absolute -bottom-px -right-px w-3.5 h-3.5 rounded-full bg-background flex items-center justify-center border-2 border-background">
-            <div className="w-2.5 h-2.5 rounded-full bg-stella-green" style={{ boxShadow: '0 0 6px rgba(74,222,128,0.5)' }} />
-          </div>
+        {/* Timestamp — visible on hover */}
+        <div className="mb-1">
+          <span className="text-[10px] text-stella-text-dim opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            {formatRelativeTime(message.timestamp)}
+          </span>
         </div>
 
-        {/* Message body */}
-        <div className="flex-1 min-w-0">
-          {/* Header */}
-          <div className="flex items-baseline gap-2 mb-1.5">
-            <span className="text-xs font-semibold text-primary tracking-wide">Stella</span>
-            <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-              {formatRelativeTime(message.timestamp)}
-            </span>
+        {/* Content — just text, no avatar, no name */}
+        {message.content && (
+          <div className="text-[15px] leading-[1.75] text-foreground tracking-[0.01em] whitespace-pre-wrap break-words">
+            {renderContent(message.content)}
           </div>
+        )}
 
-          {/* Content */}
-          {message.content && (
-            <div className="text-[15px] leading-[1.75] text-foreground tracking-[0.01em] whitespace-pre-wrap break-words">
-              {renderContent(message.content)}
-            </div>
-          )}
-
-          {message.showActions && onAction && <ActionButtons onAction={onAction} />}
-          {message.showRunCard && message.pipelineType && (
-            <RunProgressCard
-              pipelineType={message.pipelineType}
-              stages={message.pipelineType === 'research' ? researchStages : buildStages}
-              runId={message.runId}
-            />
-          )}
-          {message.showChainCard && message.chainId && (
-            <ChainProgressCard chainId={message.chainId} />
-          )}
-        </div>
+        {message.showActions && onAction && <ActionButtons onAction={onAction} />}
+        {message.showRunCard && message.pipelineType && (
+          <RunProgressCard
+            pipelineType={message.pipelineType}
+            stages={message.pipelineType === 'research' ? researchStages : buildStages}
+            runId={message.runId}
+          />
+        )}
+        {message.showChainCard && message.chainId && (
+          <ChainProgressCard chainId={message.chainId} />
+        )}
       </motion.div>
     );
   }
 
-  // User message
+  // User message — left-aligned subtle block
   return (
     <motion.div
-      className="flex justify-end group mb-8"
+      className="group mb-6"
       initial="hidden"
       animate="visible"
       variants={userVariants}
     >
-      <div className="max-w-[72%] min-w-0">
-        {/* Header */}
-        <div className="flex items-baseline justify-end gap-2 mb-1.5">
-          <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            {formatRelativeTime(message.timestamp)}
-          </span>
-          <span className="text-xs font-semibold text-stella-text-muted tracking-wide">Shai</span>
-        </div>
+      {/* Timestamp — visible on hover */}
+      <div className="mb-1">
+        <span className="text-[10px] text-stella-text-dim opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          {formatRelativeTime(message.timestamp)}
+        </span>
+      </div>
 
-        {/* Bubble */}
-        <div
-          className="px-[1.15rem] py-3 text-[15px] leading-[1.7] text-foreground whitespace-pre-wrap break-words tracking-[0.01em] bg-[#3a2820] border border-stella-terra-border"
-          style={{ borderRadius: '20px 6px 20px 20px' }}
-        >
+      {/* Subtle block — left-aligned, light background */}
+      <div className="max-w-[85%]">
+        <div className="px-4 py-3 text-[15px] leading-[1.7] text-foreground whitespace-pre-wrap break-words tracking-[0.01em] bg-white/[0.04] rounded-2xl border border-white/[0.06]">
           {message.content}
         </div>
       </div>

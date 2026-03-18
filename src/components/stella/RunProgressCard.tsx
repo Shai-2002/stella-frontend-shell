@@ -35,10 +35,8 @@ interface RunOutputs {
   build_dir?: string;
 }
 
-const StarIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="hsl(16, 64%, 58%)" opacity={0.7}>
-    <path d="M6 0l1.5 4.5L12 6l-4.5 1.5L6 12l-1.5-4.5L0 6l4.5-1.5z" />
-  </svg>
+const CheckMark = () => (
+  <span className="text-[11px] text-stella-text-dim">✓</span>
 );
 
 function formatElapsed(seconds: number): string {
@@ -167,9 +165,9 @@ export default function RunProgressCard({ pipelineType, stages: initialStages, r
               stage.status === 'active' ? 'border-l-primary' : 'border-l-transparent'
             }`}
           >
-            {stage.status === 'completed' && <StarIcon />}
-            {stage.status === 'active' && <div className="w-2 h-2 rounded-full bg-primary animate-pulse-dot" />}
-            {stage.status === 'pending' && <div className="w-2 h-2 rounded-full border-[1.5px] border-white/15" />}
+            {stage.status === 'completed' && <CheckMark />}
+            {stage.status === 'active' && <div className="w-1.5 h-1.5 rounded-full bg-primary" />}
+            {stage.status === 'pending' && <div className="w-1.5 h-1.5 rounded-full bg-white/10" />}
 
             <span className={`text-[13px] tracking-tight ${
               stage.status === 'active' ? 'text-foreground' :
