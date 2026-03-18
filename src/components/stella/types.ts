@@ -28,6 +28,8 @@ export interface Project {
   updated_at?: string;
   conversation_count?: number;
   file_count?: number;
+  task_count?: number;
+  tasks?: Task[];
 }
 
 export interface ProjectFile {

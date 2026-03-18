@@ -7,13 +7,13 @@ interface ConversationHistoryProps {
   conversations: Conversation[];
   projects: Project[];
   activeId: string;
-  activeView: 'chat' | 'settings';
+  activeView: 'chat' | 'settings' | 'projects';
   onSelect: (id: string) => void;
   onNewChat: () => void;
   onCreateProject: (name: string) => void;
   onMoveToProject: (convId: string, projectId: string | null) => void;
   onDeleteConversation: (id: string) => void;
-  onViewChange: (view: 'chat' | 'settings') => void;
+  onViewChange: (view: 'chat' | 'settings' | 'projects') => void;
   onOpenProject?: (projectId: string) => void;
   isOwner?: boolean;
 }
@@ -176,7 +176,10 @@ export default function ConversationHistory({
         {/* Projects */}
         <div className="mb-1">
           <div className="flex items-center justify-between px-1.5 pt-2 pb-1">
-            <span className="text-[11px] font-semibold text-stella-text-dim uppercase tracking-wider">Projects</span>
+            <button
+              onClick={() => onViewChange('projects')}
+              className={`text-[11px] font-semibold uppercase tracking-wider transition-colors ${activeView === 'projects' ? 'text-primary' : 'text-stella-text-dim hover:text-stella-text-muted'}`}
+            >Projects</button>
             <button
               onClick={() => setShowNewProject(true)}
               className="p-0.5 rounded text-stella-text-dim hover:text-primary transition-colors"

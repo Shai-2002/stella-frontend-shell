@@ -3,7 +3,7 @@ import { UserButton } from '@clerk/clerk-react';
 
 interface TopbarProps {
   onClearChat: () => void;
-  activeView: 'chat' | 'settings';
+  activeView: 'chat' | 'settings' | 'projects';
   showMobileMenu?: boolean;
   onMobileMenuToggle?: () => void;
   isOwner?: boolean;
@@ -22,7 +22,7 @@ export default function Topbar({ onClearChat, activeView, showMobileMenu, onMobi
       )}
 
       <span className="text-[13px] font-semibold text-foreground tracking-tight">
-        {activeView === 'chat' ? 'Stella' : 'Settings'}
+        {activeView === 'chat' ? 'Stella' : activeView === 'projects' ? 'Projects' : 'Settings'}
       </span>
 
       <div className="flex-1" />

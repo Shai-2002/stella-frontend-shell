@@ -7,6 +7,7 @@ import ChatView from '@/components/stella/ChatView';
 import Composer from '@/components/stella/Composer';
 import SettingsView from '@/components/stella/SettingsView';
 import ProjectWorkspace from '@/components/stella/ProjectWorkspace';
+import ProjectDashboard from '@/components/stella/ProjectDashboard';
 import RightSidebar from '@/components/stella/RightSidebar';
 import { Message, Conversation, Project, PipelineStatus } from '@/components/stella/types';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -35,7 +36,7 @@ const Index = () => {
   const isMobile = useIsMobile();
   const authFetch = useAuthFetch();
   const { user } = useUser();
-  const [activeView, setActiveView] = useState<'chat' | 'settings'>('chat');
+  const [activeView, setActiveView] = useState<'chat' | 'settings' | 'projects'>('chat');
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -409,9 +410,9 @@ const Index = () => {
     } catch {}
   }, []);
 
-  const handleViewChange = useCallback((view: 'chat' | 'settings') => {
+  const handleViewChange = useCallback((view: 'chat' | 'settings' | 'projects') => {
     setActiveView(view);
-    setActiveProject(null);
+    if (view !== 'projects') setActiveProject(null);
     if (isMobile) setMobileSidebarOpen(false);
   }, [isMobile]);
 
@@ -557,7 +558,7 @@ const Index = () => {
           isFilesPanelOpen={isFilesPanelOpen}
         />
 
-        {activeView === 'chat' ? (
+        {activeView === 'chat' && (
           <>
             <ChatView messages={messages} onAction={handleAction} isThinking={isThinking} onFileDrop={handleFileDrop} />
             <Composer
@@ -565,8 +566,14 @@ const Index = () => {
               onDocumentUploaded={handleDocumentUploaded}
             />
           </>
-        ) : (
-          <SettingsView />
+        )}
+        {activeView === 'settings' && <SettingsView />}
+        {activeView === 'projects' && (
+          <ProjectDashboard
+            projects={projects}
+            onSelectProject={handleOpenProject}
+            onCreateProject={handleCreateProject}
+          />
         )}
       </div>
 
