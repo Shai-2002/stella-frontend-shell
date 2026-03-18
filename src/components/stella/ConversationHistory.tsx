@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Plus, Search, FolderOpen, MoreHorizontal, Trash2, FolderInput, ChevronRight, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Conversation, Project } from './types';
+import { Conversation, Project, Task } from './types';
 
 interface ConversationHistoryProps {
   conversations: Conversation[];
@@ -15,6 +15,7 @@ interface ConversationHistoryProps {
   onDeleteConversation: (id: string) => void;
   onViewChange: (view: 'chat' | 'settings' | 'projects') => void;
   onOpenProject?: (projectId: string) => void;
+  onToggleTask?: (taskId: string, newStatus: 'pending' | 'done') => void;
   isOwner?: boolean;
 }
 
@@ -89,7 +90,7 @@ function ConvMenu({ convId, projects, onMove, onDelete, onClose }: {
 
 export default function ConversationHistory({
   conversations, projects, activeId, activeView,
-  onSelect, onNewChat, onCreateProject, onMoveToProject, onDeleteConversation, onViewChange, onOpenProject, isOwner,
+  onSelect, onNewChat, onCreateProject, onMoveToProject, onDeleteConversation, onViewChange, onOpenProject, onToggleTask, isOwner,
 }: ConversationHistoryProps) {
   const [search, setSearch] = useState('');
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
@@ -210,7 +211,34 @@ export default function ConversationHistory({
                   <span className="flex-1 text-left truncate">{p.name}</span>
                   <span className="text-[10px] text-stella-text-dim">{pConvs.length}</span>
                 </button>
-                {isExp && pConvs.length > 0 && <div className="pl-4">{pConvs.map(renderConvItem)}</div>}
+                {isExp && (
+                  <div className="pl-4">
+                    {pConvs.map(renderConvItem)}
+                    {/* Tasks */}
+                    {p.tasks && p.tasks.length > 0 && (
+                      <div className="mt-1 mb-1">
+                        <div className="text-[10px] font-semibold text-stella-text-faint uppercase tracking-wider px-2.5 py-0.5">Tasks</div>
+                        {p.tasks.map((t: Task) => {
+                          const isDone = t.status === 'done';
+                          return (
+                            <button
+                              key={t.id}
+                              onClick={() => onToggleTask?.(t.id, isDone ? 'pending' : 'done')}
+                              className="flex items-center gap-2 w-full px-2.5 py-1 text-left hover:bg-white/[0.04] rounded transition-colors"
+                            >
+                              <span className={`text-[11px] ${isDone ? 'text-stella-green/60' : 'text-stella-text-dim'}`}>
+                                {isDone ? '☑' : '☐'}
+                              </span>
+                              <span className={`text-[12px] truncate ${isDone ? 'text-stella-text-faint line-through' : 'text-stella-text-muted'}`}>
+                                {t.title}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

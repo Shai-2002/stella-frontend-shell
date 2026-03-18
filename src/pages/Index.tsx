@@ -475,6 +475,23 @@ const Index = () => {
     } catch (err) { console.error('Drag-drop upload failed', err); }
   }, [handleDocumentUploaded]);
 
+  const handleToggleTask = useCallback(async (taskId: string, newStatus: 'pending' | 'done') => {
+    try {
+      await fetchRef.current(`${API}/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      // Update local projects state
+      setProjects(prev => prev.map(p => ({
+        ...p,
+        tasks: p.tasks?.map(t => t.id === taskId ? { ...t, status: newStatus } : t),
+      })));
+    } catch (err) {
+      console.error('[handleToggleTask] error:', err);
+    }
+  }, []);
+
   const handleProjectUpdated = useCallback((updated: Project) => {
     setProjects(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
     if (activeProject?.id === updated.id) setActiveProject({ ...activeProject, ...updated });
@@ -515,6 +532,7 @@ const Index = () => {
       onDeleteConversation={handleDeleteConversation}
       onViewChange={handleViewChange}
       onOpenProject={handleOpenProject}
+      onToggleTask={handleToggleTask}
       isOwner={isOwner}
     />
   );
