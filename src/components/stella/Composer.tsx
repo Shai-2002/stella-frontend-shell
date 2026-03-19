@@ -83,34 +83,37 @@ export default function Composer({ onSend, onTranscript, onDocumentUploaded }: C
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsUploading(true);
-    setUploadFileName(file.name);
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     setUploadError('');
     setUploadSuccess('');
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const r = await authFetch('/api/documents/upload', { method: 'POST', body: formData });
-      if (!r.ok) {
-        const errText = await r.text().catch(() => 'Upload failed');
-        throw new Error(errText);
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setIsUploading(true);
+      setUploadFileName(file.name);
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const r = await authFetch('/api/documents/upload', { method: 'POST', body: formData });
+        if (!r.ok) {
+          const errText = await r.text().catch(() => 'Upload failed');
+          throw new Error(errText);
+        }
+        const d = await r.json();
+        if (d.success && onDocumentUploaded) {
+          onDocumentUploaded(d.documentId, d.filename, d.message);
+          setUploadSuccess(d.filename || file.name);
+        }
+      } catch(err: any) {
+        console.error('Upload failed', err);
+        setUploadError(err.message || `Upload failed: ${file.name}`);
       }
-      const d = await r.json();
-      if (d.success && onDocumentUploaded) {
-        onDocumentUploaded(d.documentId, d.filename, d.message);
-        setUploadSuccess(d.filename || file.name);
-        setTimeout(() => setUploadSuccess(''), 4000);
-      }
-    } catch(err: any) {
-      console.error('Upload failed', err);
-      setUploadError(err.message || 'Upload failed');
-      setTimeout(() => setUploadError(''), 5000);
-    } finally {
-      setIsUploading(false);
-      setUploadFileName('');
     }
+    setIsUploading(false);
+    setUploadFileName('');
+    setTimeout(() => setUploadSuccess(''), 4000);
+    if (uploadError) setTimeout(() => setUploadError(''), 5000);
     e.target.value = '';
   };
 
@@ -178,6 +181,7 @@ export default function Composer({ onSend, onTranscript, onDocumentUploaded }: C
           <input
             type="file"
             accept=".pdf,.docx,.txt,.md"
+            multiple
             className="hidden"
             disabled={isUploading}
             onChange={handleFileUpload}

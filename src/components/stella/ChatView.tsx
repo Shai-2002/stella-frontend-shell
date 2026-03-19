@@ -33,8 +33,10 @@ export default function ChatView({ messages, onAction, isThinking, onFileDrop }:
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file && onFileDrop) onFileDrop(file);
+    const files = e.dataTransfer.files;
+    if (files && onFileDrop) {
+      Array.from(files).forEach(file => onFileDrop(file));
+    }
   }, [onFileDrop]);
 
   const isEmpty = messages.length === 0 && !isThinking;

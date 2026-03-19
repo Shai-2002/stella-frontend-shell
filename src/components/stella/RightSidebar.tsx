@@ -209,16 +209,20 @@ export default function RightSidebar({
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) uploadFile(file);
+    const files = e.target.files;
+    if (files) {
+      Array.from(files).forEach(file => uploadFile(file));
+    }
     e.target.value = '';
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) uploadFile(file);
+    const files = e.dataTransfer.files;
+    if (files) {
+      Array.from(files).forEach(file => uploadFile(file));
+    }
   };
 
   const handleRetry = async (docId: string) => {
@@ -251,7 +255,7 @@ export default function RightSidebar({
           >
             {isUploading ? <Loader2 size={14} className="animate-spin text-primary" /> : <Upload size={14} />}
           </button>
-          <input ref={fileInputRef} type="file" accept=".pdf,.docx,.txt,.md" onChange={handleFileInput} disabled={isUploading} className="hidden" />
+          <input ref={fileInputRef} type="file" accept=".pdf,.docx,.txt,.md" multiple onChange={handleFileInput} disabled={isUploading} className="hidden" />
           <button onClick={onClose} className="p-1 rounded text-stella-text-dim hover:text-foreground hover:bg-white/5 transition-colors">
             <X size={14} />
           </button>
