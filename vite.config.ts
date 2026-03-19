@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    allowedHosts: ['shais-mac-mini.tail4563d2.ts.net'],
     hmr: {
       overlay: false,
     },

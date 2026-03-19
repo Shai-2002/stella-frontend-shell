@@ -16,6 +16,7 @@ interface RightSidebarProps {
   projectInstructions?: string | null;
   researchStatus: PipelineStatus | null;
   buildStatus: PipelineStatus | null;
+  presentationStatus?: PipelineStatus | null;
   onFileUploaded?: (id: string, filename: string, msg: string) => void;
 }
 
@@ -28,25 +29,25 @@ function formatElapsed(seconds: number): string {
 
 function StatusCard({ label, color, status }: {
   label: string;
-  color: 'terra' | 'green';
+  color: 'terra' | 'green' | 'indigo';
   status: PipelineStatus | null;
 }) {
   const isRunning = status?.status === 'running';
   const isComplete = status?.status === 'complete';
   const isFailed = status?.status === 'failed';
   const borderColor = isRunning
-    ? (color === 'terra' ? 'border-l-primary' : 'border-l-stella-green')
+    ? (color === 'terra' ? 'border-l-primary' : color === 'indigo' ? 'border-l-stella-indigo' : 'border-l-stella-green')
     : 'border-l-transparent';
 
   return (
     <div className={`bg-stella-sidebar rounded-lg p-3 border-l-[3px] ${borderColor} transition-colors`}>
       <div className="flex items-center gap-2 mb-2">
         <span className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded ${
-          color === 'terra' ? 'bg-stella-terra-dim text-primary' : 'bg-stella-green-dim text-stella-green'
+          color === 'terra' ? 'bg-stella-terra-dim text-primary' : color === 'indigo' ? 'bg-stella-indigo/10 text-stella-indigo' : 'bg-stella-green-dim text-stella-green'
         }`}>
           {label}
         </span>
-        {isRunning && <Loader2 size={10} className="animate-spin text-primary" />}
+        {isRunning && <Loader2 size={10} className={`animate-spin ${color === 'indigo' ? 'text-stella-indigo' : 'text-primary'}`} />}
       </div>
 
       {!status || status.status === 'idle' ? (
@@ -106,7 +107,7 @@ function FileIcon({ type }: { type: string }) {
 
 export default function RightSidebar({
   isOpen, onClose, projectId, projectName, projectInstructions,
-  researchStatus, buildStatus, onFileUploaded,
+  researchStatus, buildStatus, presentationStatus, onFileUploaded,
 }: RightSidebarProps) {
   const authFetch = useAuthFetch();
   const [files, setFiles] = useState<ProjectFile[]>([]);
@@ -330,6 +331,7 @@ export default function RightSidebar({
           <div className="text-[11px] font-semibold text-stella-text-dim uppercase tracking-wider">Pipeline Status</div>
           <StatusCard label="Research" color="terra" status={researchStatus} />
           <StatusCard label="Build" color="green" status={buildStatus} />
+          <StatusCard label="Presentation" color="indigo" status={presentationStatus ?? null} />
         </div>
       </div>
     </motion.div>

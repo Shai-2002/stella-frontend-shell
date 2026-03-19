@@ -47,6 +47,7 @@ const Index = () => {
   const [isThinking, setIsThinking] = useState(false);
   const [researchStatus, setResearchStatus] = useState<PipelineStatus | null>(null);
   const [buildStatus, setBuildStatus] = useState<PipelineStatus | null>(null);
+  const [presentationStatus, setPresentationStatus] = useState<PipelineStatus | null>(null);
   const isFirstUserMsg = useRef(true);
   const activeConvRef = useRef<string | null>(null);
   // Store authFetch in a ref so helper functions can access it
@@ -61,9 +62,9 @@ const Index = () => {
   }, [activeConversationId]);
 
   // Connect to pipeline SSE and track status in sidebar
-  const trackPipelineRun = useCallback((runId: string, mode: 'research' | 'build', topic: string) => {
-    const totalStages = mode === 'research' ? 8 : 8;
-    const setStatus = mode === 'research' ? setResearchStatus : setBuildStatus;
+  const trackPipelineRun = useCallback((runId: string, mode: 'research' | 'build' | 'presentation', topic: string) => {
+    const totalStages = mode === 'presentation' ? 4 : 8;
+    const setStatus = mode === 'research' ? setResearchStatus : mode === 'build' ? setBuildStatus : setPresentationStatus;
     setStatus({ runId, topic, stage: 0, totalStages, stageName: 'Starting', status: 'running', elapsed: 0, cost: 0 });
     setIsFilesPanelOpen(true); // auto-open sidebar
 
@@ -287,11 +288,11 @@ const Index = () => {
           trackPipelineRun(chainId, 'research', data.content?.slice(0, 60) || 'Sequential run');
         } else if (runId) {
           // Pipeline status moved to RightSidebar — just show text message
-          const mode = data.intent === 'BUILD' ? 'build' : 'research';
+          const mode = data.intent === 'BUILD' ? 'build' : data.intent === 'PRESENTATION' ? 'presentation' : 'research';
           const stellaMsg: Message = { id: (Date.now() + 1).toString(), role: 'stella', content: data.content, timestamp: nowTimestamp() };
           setMessages((prev) => [...prev, stellaMsg]);
           if (convId) saveMessageToDb(convId, 'stella', data.content, { intent: data.intent, run_id: runId });
-          trackPipelineRun(runId, mode as 'research' | 'build', data.content?.slice(0, 60) || `${mode} run`);
+          trackPipelineRun(runId, mode as 'research' | 'build' | 'presentation', data.content?.slice(0, 60) || `${mode} run`);
         } else {
           const showActions = data.action === 'CONFIRM' || data.action === 'CLARIFY_MODE';
           const stellaMsg: Message = { id: (Date.now() + 1).toString(), role: 'stella', content: data.content, timestamp: nowTimestamp(), showActions };
@@ -606,6 +607,7 @@ const Index = () => {
             projectInstructions={activeProject?.instructions}
             researchStatus={researchStatus}
             buildStatus={buildStatus}
+            presentationStatus={presentationStatus}
             onFileUploaded={handleDocumentUploaded}
           />
         )}
