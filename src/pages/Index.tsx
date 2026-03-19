@@ -295,7 +295,14 @@ const Index = () => {
           trackPipelineRun(runId, mode as 'research' | 'build' | 'presentation', data.content?.slice(0, 60) || `${mode} run`);
         } else {
           const showActions = data.action === 'CONFIRM' || data.action === 'CLARIFY_MODE';
-          const stellaMsg: Message = { id: (Date.now() + 1).toString(), role: 'stella', content: data.content, timestamp: nowTimestamp(), showActions };
+          // Determine action type: if server sent pendingPipeline, it's a specific-intent confirmation
+          const hasPending = !!data.pendingPipeline;
+          const actionType: 'clarify' | 'confirm' = hasPending ? 'confirm' : 'clarify';
+          const pendingMode = data.pendingPipeline?.mode as 'research' | 'build' | 'presentation' | undefined;
+          const stellaMsg: Message = {
+            id: (Date.now() + 1).toString(), role: 'stella', content: data.content, timestamp: nowTimestamp(),
+            showActions, actionType, pendingMode,
+          };
           setMessages((prev) => [...prev, stellaMsg]);
           if (convId) saveMessageToDb(convId, 'stella', data.content, { intent: data.intent, action: data.action });
         }
@@ -321,8 +328,70 @@ const Index = () => {
     }]);
   }, []);
 
-  const handleAction = useCallback(async (action: 'research' | 'build' | 'both') => {
+  const handleAction = useCallback(async (action: 'research' | 'build' | 'both' | 'go_ahead' | 'cancel') => {
+    // Hide action buttons from all messages
     setMessages((prev) => prev.map((m) => ({ ...m, showActions: false })));
+
+    // Cancel — tell server to clear pending
+    if (action === 'cancel') {
+      try {
+        await fetchRef.current('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: 'cancel', history: [],
+            conversation_id: activeConvRef.current || undefined,
+          }),
+        });
+        setMessages((prev) => [...prev, {
+          id: Date.now().toString(), role: 'stella',
+          content: 'Cancelled. Let me know when you want to start something.',
+          timestamp: nowTimestamp(),
+        }]);
+      } catch {}
+      return;
+    }
+
+    // Go ahead — find the pending mode from the last message and confirm it
+    if (action === 'go_ahead') {
+      // Find pending mode from the most recent message with pendingMode
+      const pendingMsg = [...messages].reverse().find(m => m.pendingMode);
+      const pendingMode = pendingMsg?.pendingMode || 'research';
+      const intentMap: Record<string, string> = { research: 'RESEARCH', build: 'BUILD', presentation: 'PRESENTATION' };
+
+      try {
+        const res = await fetchRef.current('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: 'go ahead', history: [],
+            confirmedIntent: intentMap[pendingMode],
+            confirmedMode: pendingMode,
+            conversation_id: activeConvRef.current || undefined,
+          }),
+        });
+        const data = await res.json();
+        const runId = data.run_id || data.runId;
+        const chainId = data.chain_id;
+        const ts = nowTimestamp();
+        const confirmMsg: Message = { id: Date.now().toString(), role: 'stella', content: data.content || `Starting ${pendingMode} run.`, timestamp: ts };
+        setMessages((prev) => [...prev, confirmMsg]);
+        const convId = activeConvRef.current;
+        if (convId) saveMessageToDb(convId, 'stella', confirmMsg.content, { intent: pendingMode.toUpperCase(), run_id: runId, chain_id: chainId });
+        if (chainId) {
+          trackPipelineRun(chainId, 'research', confirmMsg.content.slice(0, 60));
+        } else if (runId) {
+          const trackMode = pendingMode === 'build' ? 'build' : pendingMode === 'presentation' ? 'presentation' : 'research';
+          trackPipelineRun(runId, trackMode, confirmMsg.content.slice(0, 60));
+        }
+      } catch (err) {
+        console.error('[handleAction] error:', err);
+        setMessages((prev) => [...prev, { id: Date.now().toString(), role: 'stella', content: 'Failed to start the pipeline. Check the console.', timestamp: nowTimestamp() }]);
+      }
+      return;
+    }
+
+    // Original Research / Build / Both flow
     try {
       const res = await fetchRef.current('/api/chat', {
         method: 'POST',
@@ -331,6 +400,7 @@ const Index = () => {
           message: `__action:${action}`, history: [],
           confirmedIntent: action === 'build' ? 'BUILD' : 'RESEARCH',
           confirmedMode: action,
+          conversation_id: activeConvRef.current || undefined,
         }),
       });
       const data = await res.json();
@@ -351,7 +421,7 @@ const Index = () => {
       console.error('[handleAction] error:', err);
       setMessages((prev) => [...prev, { id: Date.now().toString(), role: 'stella', content: 'Failed to start the pipeline. Check the console.', timestamp: nowTimestamp() }]);
     }
-  }, []);
+  }, [messages]);
 
   const handleNewChat = useCallback(async () => {
     activeConvRef.current = null;

@@ -6,7 +6,7 @@ import ActionButtons from './ActionButtons';
 
 interface MessageBubbleProps {
   message: Message;
-  onAction?: (action: 'research' | 'build' | 'both') => void;
+  onAction?: (action: 'research' | 'build' | 'both' | 'go_ahead' | 'cancel') => void;
   isLatest?: boolean;
 }
 
@@ -141,7 +141,7 @@ export default function MessageBubble({ message, onAction, isLatest = false }: M
           </div>
         )}
 
-        {message.showActions && onAction && <ActionButtons onAction={onAction} />}
+        {message.showActions && onAction && <ActionButtons onAction={onAction} actionType={message.actionType || 'clarify'} />}
       </motion.div>
     );
   }

@@ -20,7 +20,7 @@ interface ProjectWorkspaceProps {
   onSelectConversation: (id: string) => void;
   onNewChatInProject: () => void;
   onSend: (text: string) => void;
-  onAction: (action: 'research' | 'build' | 'both') => void;
+  onAction: (action: 'research' | 'build' | 'both' | 'go_ahead' | 'cancel') => void;
   onDocumentUploaded: (id: string, filename: string, msg: string) => void;
   onProjectUpdated: (project: Project) => void;
 }

@@ -6,7 +6,7 @@ import TypingIndicator from './TypingIndicator';
 
 interface ChatViewProps {
   messages: Message[];
-  onAction?: (action: 'research' | 'build' | 'both') => void;
+  onAction?: (action: 'research' | 'build' | 'both' | 'go_ahead' | 'cancel') => void;
   isThinking?: boolean;
   onFileDrop?: (file: File) => void;
 }

@@ -4,6 +4,10 @@ export interface Message {
   content: string;
   timestamp: string;
   showActions?: boolean;
+  /** 'clarify' = Research/Build/Both buttons (ambiguous intent). 'confirm' = Go ahead/Cancel (specific intent detected). */
+  actionType?: 'clarify' | 'confirm';
+  /** When actionType is 'confirm', which pipeline mode is pending */
+  pendingMode?: 'research' | 'build' | 'presentation';
   showRunCard?: boolean;
   pipelineType?: 'research' | 'build';
   runId?: string;

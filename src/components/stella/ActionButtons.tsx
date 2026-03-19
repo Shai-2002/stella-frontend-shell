@@ -1,10 +1,12 @@
 import { motion } from 'framer-motion';
 
 interface ActionButtonsProps {
-  onAction: (action: 'research' | 'build' | 'both') => void;
+  onAction: (action: 'research' | 'build' | 'both' | 'go_ahead' | 'cancel') => void;
+  /** 'clarify' shows Research/Build/Both. 'confirm' shows Go ahead/Change plan/Cancel. */
+  actionType?: 'clarify' | 'confirm';
 }
 
-const buttons = [
+const clarifyButtons = [
   {
     id: 'research' as const,
     icon: '⬡',
@@ -25,7 +27,24 @@ const buttons = [
   },
 ];
 
-export default function ActionButtons({ onAction }: ActionButtonsProps) {
+const confirmButtons = [
+  {
+    id: 'go_ahead' as const,
+    icon: '▶',
+    label: 'Go ahead',
+    className: 'bg-primary border-primary text-white hover:brightness-110',
+  },
+  {
+    id: 'cancel' as const,
+    icon: '✕',
+    label: 'Cancel',
+    className: 'bg-white/[0.04] border-white/[0.15] text-stella-text-muted hover:bg-white/[0.08]',
+  },
+];
+
+export default function ActionButtons({ onAction, actionType = 'clarify' }: ActionButtonsProps) {
+  const buttons = actionType === 'confirm' ? confirmButtons : clarifyButtons;
+
   return (
     <div className="flex flex-wrap gap-3 mt-5">
       {buttons.map((btn, i) => (
