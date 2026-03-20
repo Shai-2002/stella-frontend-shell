@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Volume2, VolumeX } from 'lucide-react';
 import { Message } from './types';
 import ActionButtons from './ActionButtons';
 
@@ -38,6 +38,78 @@ function CopyButton({ text }: { text: string }) {
       title="Copy code"
     >
       {copied ? <Check size={12} className="text-stella-green" /> : <Copy size={12} className="text-stella-text-dim" />}
+    </button>
+  );
+}
+
+/** Strip markdown formatting for clean TTS output */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, ' code block ')
+    .replace(/`[^`]+`/g, (m) => m.slice(1, -1))
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/^[-•]\s/gm, '')
+    .replace(/\n+/g, '. ')
+    .trim();
+}
+
+function speakText(text: string) {
+  if (!('speechSynthesis' in window)) return;
+  // Stop any current speech
+  speechSynthesis.cancel();
+
+  const clean = stripMarkdown(text);
+  const utterance = new SpeechSynthesisUtterance(clean);
+  utterance.rate = 1.0;
+  utterance.pitch = 1.0;
+
+  // Try to pick a good voice
+  const voices = speechSynthesis.getVoices();
+  const preferred = voices.find(
+    v => v.name.includes('Samantha') ||
+         v.name.includes('Google UK English Female') ||
+         v.name.includes('Karen') ||
+         (v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
+  ) || voices.find(v => v.lang.startsWith('en'));
+  if (preferred) utterance.voice = preferred;
+
+  speechSynthesis.speak(utterance);
+}
+
+function SpeakButton({ text }: { text: string }) {
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const handleClick = useCallback(() => {
+    if (isSpeaking) {
+      speechSynthesis.cancel();
+      setIsSpeaking(false);
+    } else {
+      speakText(text);
+      setIsSpeaking(true);
+      // Reset when speech ends
+      const check = setInterval(() => {
+        if (!speechSynthesis.speaking) {
+          setIsSpeaking(false);
+          clearInterval(check);
+        }
+      }, 200);
+    }
+  }, [text, isSpeaking]);
+
+  if (!('speechSynthesis' in window)) return null;
+
+  return (
+    <button
+      onClick={handleClick}
+      className="p-1.5 rounded-md hover:bg-white/5 transition-all opacity-0 group-hover:opacity-60 hover:!opacity-100"
+      title={isSpeaking ? 'Stop speaking' : 'Listen'}
+    >
+      {isSpeaking ? (
+        <VolumeX size={13} className="text-primary" />
+      ) : (
+        <Volume2 size={13} className="text-stella-text-dim" />
+      )}
     </button>
   );
 }
@@ -127,16 +199,17 @@ export default function MessageBubble({ message, onAction, isLatest = false }: M
         animate="visible"
         variants={stellaVariants}
       >
-        {/* Timestamp — visible on hover */}
-        <div className="mb-1">
+        {/* Timestamp + speak button — visible on hover */}
+        <div className="mb-1 flex items-center gap-1.5">
           <span className="text-[10px] text-stella-text-dim opacity-0 group-hover:opacity-100 transition-opacity duration-200">
             {formatRelativeTime(message.timestamp)}
           </span>
+          {message.content && <SpeakButton text={message.content} />}
         </div>
 
         {/* Content — just text, no avatar, no name */}
         {message.content && (
-          <div className="text-[15px] leading-[1.75] text-foreground tracking-[0.01em] whitespace-pre-wrap break-words">
+          <div className="text-[14px] sm:text-[15px] leading-[1.75] text-foreground tracking-[0.01em] whitespace-pre-wrap break-words">
             {renderContent(message.content)}
           </div>
         )}
@@ -162,8 +235,8 @@ export default function MessageBubble({ message, onAction, isLatest = false }: M
       </div>
 
       {/* Subtle block — left-aligned, light background */}
-      <div className="max-w-[85%]">
-        <div className="px-4 py-3 text-[15px] leading-[1.7] text-foreground whitespace-pre-wrap break-words tracking-[0.01em] bg-white/[0.04] rounded-2xl border border-white/[0.06]">
+      <div className="max-w-full sm:max-w-[85%]">
+        <div className="px-3 py-2.5 sm:px-4 sm:py-3 text-[14px] sm:text-[15px] leading-[1.7] text-foreground whitespace-pre-wrap break-words tracking-[0.01em] bg-white/[0.04] rounded-2xl border border-white/[0.06]">
           {message.content}
         </div>
       </div>

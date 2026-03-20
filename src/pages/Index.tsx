@@ -444,6 +444,7 @@ const Index = () => {
     setActiveConversationId(id);
     loadConversation(id);
     setActiveView('chat');
+    setMobileSidebarOpen(false); // close mobile sidebar on selection
   }, []);
 
   const handleCreateProject = useCallback(async (name: string) => {

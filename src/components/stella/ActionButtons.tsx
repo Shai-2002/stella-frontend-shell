@@ -46,7 +46,7 @@ export default function ActionButtons({ onAction, actionType = 'clarify' }: Acti
   const buttons = actionType === 'confirm' ? confirmButtons : clarifyButtons;
 
   return (
-    <div className="flex flex-wrap gap-3 mt-5">
+    <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3 mt-5">
       {buttons.map((btn, i) => (
         <motion.button
           key={btn.id}
@@ -54,7 +54,7 @@ export default function ActionButtons({ onAction, actionType = 'clarify' }: Acti
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.1, duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
           onClick={() => onAction(btn.id)}
-          className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13px] font-semibold tracking-wide cursor-pointer border transition-all duration-200 ${btn.className}`}
+          className={`inline-flex items-center justify-center gap-2 px-5 py-3 sm:py-2.5 rounded-full text-[13px] font-semibold tracking-wide cursor-pointer border transition-all duration-200 min-h-[44px] ${btn.className}`}
         >
           <span className="text-xs">{btn.icon}</span> {btn.label}
         </motion.button>

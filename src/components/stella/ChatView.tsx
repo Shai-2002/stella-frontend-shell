@@ -63,7 +63,7 @@ export default function ChatView({ messages, onAction, isThinking, onFileDrop }:
         )}
       </AnimatePresence>
 
-      <div className="max-w-[720px] mx-auto px-6">
+      <div className="max-w-[720px] mx-auto px-3 md:px-6">
         {/* Empty state — welcome */}
         {isEmpty && (
           <motion.div

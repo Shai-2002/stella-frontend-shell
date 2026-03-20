@@ -237,13 +237,22 @@ export default function RightSidebar({
   if (!isOpen) return null;
 
   return (
-    <motion.div
-      initial={{ width: 0, opacity: 0 }}
-      animate={{ width: 320, opacity: 1 }}
-      exit={{ width: 0, opacity: 0 }}
-      transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="flex-shrink-0 h-full bg-stella-surface border-l border-stella-border flex flex-col overflow-hidden"
-    >
+    <>
+      {/* Mobile backdrop overlay */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-40 bg-black/50 md:hidden"
+        onClick={onClose}
+      />
+      <motion.div
+        initial={{ width: 0, opacity: 0 }}
+        animate={{ width: 320, opacity: 1 }}
+        exit={{ width: 0, opacity: 0 }}
+        transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+        className="fixed right-0 top-0 bottom-0 z-50 md:relative md:z-auto flex-shrink-0 h-full bg-stella-surface border-l border-stella-border flex flex-col overflow-hidden"
+      >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-stella-border flex-shrink-0">
         <span className="text-[13px] font-medium text-foreground">
@@ -335,5 +344,6 @@ export default function RightSidebar({
         </div>
       </div>
     </motion.div>
+    </>
   );
 }

@@ -20,7 +20,12 @@ export default function Composer({ onSend, onTranscript, onDocumentUploaded }: C
   const [uploadSuccess, setUploadSuccess] = useState('');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const recognitionRef = useRef<any>(null);
   const authFetch = useAuthFetch();
+
+  // Detect browser SpeechRecognition support
+  const hasBrowserSTT = typeof window !== 'undefined' &&
+    !!(window.SpeechRecognition || (window as any).webkitSpeechRecognition);
 
   const handleInput = useCallback(() => {
     const el = textareaRef.current;
@@ -48,6 +53,48 @@ export default function Composer({ onSend, onTranscript, onDocumentUploaded }: C
   };
 
   const startRecording = async () => {
+    // Use browser SpeechRecognition if available (no server needed)
+    if (hasBrowserSTT) {
+      try {
+        const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+        recognitionRef.current = recognition;
+
+        recognition.onresult = (event: any) => {
+          const transcript = Array.from(event.results)
+            .map((r: any) => r[0].transcript)
+            .join('');
+          setText(transcript);
+        };
+
+        recognition.onend = () => {
+          setIsRecording(false);
+          setIsTranscribing(false);
+          recognitionRef.current = null;
+        };
+
+        recognition.onerror = () => {
+          setIsRecording(false);
+          setIsTranscribing(false);
+          recognitionRef.current = null;
+        };
+
+        recognition.start();
+        setIsRecording(true);
+      } catch {
+        // Fall through to MediaRecorder
+        startMediaRecording();
+      }
+      return;
+    }
+
+    startMediaRecording();
+  };
+
+  const startMediaRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
@@ -78,6 +125,10 @@ export default function Composer({ onSend, onTranscript, onDocumentUploaded }: C
   };
 
   const stopRecording = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
     mediaRecorderRef.current?.stop();
     setIsRecording(false);
   };
@@ -120,7 +171,7 @@ export default function Composer({ onSend, onTranscript, onDocumentUploaded }: C
   const hasText = text.trim().length > 0;
 
   return (
-    <div className="px-6 pt-3 pb-4 flex-shrink-0 max-w-[720px] mx-auto w-full">
+    <div className="px-3 md:px-6 pt-3 pb-4 flex-shrink-0 max-w-[720px] mx-auto w-full">
       {/* Upload status banners */}
       <AnimatePresence>
         {isUploading && (
@@ -200,38 +251,39 @@ export default function Composer({ onSend, onTranscript, onDocumentUploaded }: C
           style={{ maxHeight: '200px' }}
         />
 
-        {/* Mic button */}
+        {/* Mic button — 44px touch target on mobile. Tap to toggle with browser STT, hold for server STT */}
         <button
-          onMouseDown={startRecording}
-          onMouseUp={stopRecording}
-          onTouchStart={startRecording}
-          onTouchEnd={stopRecording}
-          title="Hold to speak"
-          className={`flex-shrink-0 w-[30px] h-[30px] rounded-full flex items-center justify-center transition-all ${
+          onClick={hasBrowserSTT ? () => { if (isRecording) stopRecording(); else startRecording(); } : undefined}
+          onMouseDown={!hasBrowserSTT ? startRecording : undefined}
+          onMouseUp={!hasBrowserSTT ? stopRecording : undefined}
+          onTouchStart={!hasBrowserSTT ? startRecording : undefined}
+          onTouchEnd={!hasBrowserSTT ? stopRecording : undefined}
+          title={hasBrowserSTT ? (isRecording ? 'Stop listening' : 'Voice input') : 'Hold to speak'}
+          className={`flex-shrink-0 w-[44px] h-[44px] md:w-[30px] md:h-[30px] rounded-full flex items-center justify-center transition-all ${
             isRecording ? 'bg-primary/30' : isTranscribing ? 'bg-stella-green/20' : 'hover:bg-white/5'
           }`}
         >
           {isTranscribing ? (
             <span className="text-[11px] text-stella-green">...</span>
           ) : (
-            <Mic size={14} className={isRecording ? 'text-primary' : 'text-stella-text-dim'} />
+            <Mic size={16} className={`md:w-[14px] md:h-[14px] ${isRecording ? 'text-primary' : 'text-stella-text-dim'}`} />
           )}
         </button>
 
-        {/* Send */}
+        {/* Send — 44px touch target on mobile */}
         <button
           onClick={handleSend}
           disabled={!hasText}
-          className={`w-[30px] h-[30px] rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+          className={`w-[44px] h-[44px] md:w-[30px] md:h-[30px] rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
             hasText ? 'bg-primary hover:brightness-110 scale-100' : 'bg-white/[0.06] scale-95'
           }`}
         >
-          <ArrowUp size={14} className={hasText ? 'text-primary-foreground' : 'text-stella-text-faint'} />
+          <ArrowUp size={16} className={`md:w-[14px] md:h-[14px] ${hasText ? 'text-primary-foreground' : 'text-stella-text-faint'}`} />
         </button>
       </div>
 
-      {/* Hint */}
-      <p className="text-center text-[11px] mt-2.5 text-stella-text-faint">
+      {/* Hint — hidden on mobile */}
+      <p className="text-center text-[11px] mt-2.5 text-stella-text-faint hidden md:block">
         Enter to send · Shift+Enter for new line
       </p>
     </div>
