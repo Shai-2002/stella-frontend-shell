@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, KeyboardEvent } from 'react';
 import { Paperclip, ArrowUp, Mic, Loader2, FileText, X, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAuthFetch } from '@/hooks/use-auth-fetch';
+import { useAuthFetch, API_BASE } from '@/hooks/use-auth-fetch';
 
 interface ComposerProps {
   onSend: (text: string) => void;
@@ -59,7 +59,7 @@ export default function Composer({ onSend, onTranscript, onDocumentUploaded }: C
         const formData = new FormData();
         formData.append('audio', blob, 'recording.webm');
         try {
-          const r = await fetch('/api/voice/transcribe', { method: 'POST', body: formData });
+          const r = await fetch(`${API_BASE}/api/voice/transcribe`, { method: 'POST', body: formData });
           const d = await r.json();
           if (d.text) {
             setText(prev => prev + d.text);

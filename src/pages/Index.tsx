@@ -13,7 +13,14 @@ import { Message, Conversation, Project, PipelineStatus } from '@/components/ste
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuthFetch } from '@/hooks/use-auth-fetch';
 
-const API = '/api';
+const API_BASE = import.meta.env.VITE_API_URL || '';
+const API = `${API_BASE}/api`;
+
+/** Resolve /api paths to the backend in production */
+function apiUrl(path: string): string {
+  if (path.startsWith('/api') && API_BASE) return `${API_BASE}${path}`;
+  return path;
+}
 
 const CLEAR_MESSAGES = [
   "Cleared. What are we doing?",
@@ -68,7 +75,7 @@ const Index = () => {
     setStatus({ runId, topic, stage: 0, totalStages, stageName: 'Starting', status: 'running', elapsed: 0, cost: 0 });
     setIsFilesPanelOpen(true); // auto-open sidebar
 
-    const es = new EventSource(`/api/run/${runId}/stream`);
+    const es = new EventSource(apiUrl(`/api/run/${runId}/stream`));
     es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);

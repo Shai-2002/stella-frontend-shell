@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, FileText, Loader2, CheckCircle2, AlertCircle, Upload, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ProjectFile, PipelineStatus } from './types';
-import { useAuthFetch } from '@/hooks/use-auth-fetch';
+import { useAuthFetch, API_BASE } from '@/hooks/use-auth-fetch';
 
 const API = '/api';
 const POLL_INTERVAL = 3000;
@@ -85,7 +85,7 @@ function StatusCard({ label, color, status }: {
           )}
           {isComplete && status.runId && (
             <a
-              href={`/api/report/${status.runId}`}
+              href={`${API_BASE}/api/report/${status.runId}`}
               target="_blank"
               rel="noreferrer"
               className="block text-[11px] text-primary hover:underline mt-1"
