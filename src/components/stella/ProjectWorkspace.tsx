@@ -5,6 +5,7 @@ import { Project, ProjectFile, Conversation, Message, PipelineStatus } from './t
 import { useAuthFetch, API_BASE } from '@/hooks/use-auth-fetch';
 import ChatView from './ChatView';
 import Composer from './Composer';
+import DownloadButtons from './DownloadButtons';
 
 function formatElapsed(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
@@ -13,16 +14,20 @@ function formatElapsed(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
-function StatusCard({ label, color, status }: {
+function StatusCard({ label, color, status, mode }: {
   label: string;
   color: 'terra' | 'green' | 'indigo';
   status: PipelineStatus | null;
+  mode: 'research' | 'build' | 'presentation';
 }) {
   const isRunning = status?.status === 'running';
   const isComplete = status?.status === 'complete';
   const isFailed = status?.status === 'failed';
+  const isQueued = status?.status === 'queued';
   const borderColor = isRunning
     ? (color === 'terra' ? 'border-l-primary' : color === 'indigo' ? 'border-l-stella-indigo' : 'border-l-stella-green')
+    : isComplete
+    ? 'border-l-stella-green'
     : 'border-l-transparent';
 
   return (
@@ -34,10 +39,14 @@ function StatusCard({ label, color, status }: {
           {label}
         </span>
         {isRunning && <Loader2 size={10} className={`animate-spin ${color === 'indigo' ? 'text-stella-indigo' : 'text-primary'}`} />}
+        {isQueued && <span className="w-2 h-2 rounded-full bg-stella-text-dim animate-pulse" />}
+        {isComplete && <CheckCircle2 size={10} className="text-stella-green" />}
       </div>
 
       {!status || status.status === 'idle' ? (
         <p className="text-[11px] text-stella-text-faint">Currently idle</p>
+      ) : isQueued ? (
+        <p className="text-[11px] text-stella-text-dim animate-pulse">Queued — waiting for research to complete</p>
       ) : (
         <div className="space-y-1">
           <div className="flex justify-between text-[11px]">
@@ -70,14 +79,7 @@ function StatusCard({ label, color, status }: {
             </div>
           )}
           {isComplete && status.runId && (
-            <a
-              href={`${API_BASE}/api/report/${status.runId}`}
-              target="_blank"
-              rel="noreferrer"
-              className="block text-[11px] text-primary hover:underline mt-1"
-            >
-              View files →
-            </a>
+            <DownloadButtons runId={status.runId} mode={mode} />
           )}
         </div>
       )}
@@ -449,9 +451,9 @@ export default function ProjectWorkspace({
         <div className="mt-5">
           <div className="text-[11px] font-semibold text-stella-text-dim uppercase tracking-wider mb-2">Pipelines</div>
           <div className="space-y-2">
-            <StatusCard label="Research" color="terra" status={researchStatus ?? null} />
-            <StatusCard label="Build" color="green" status={buildStatus ?? null} />
-            <StatusCard label="Presentation" color="indigo" status={presentationStatus ?? null} />
+            <StatusCard label="Research" color="terra" status={researchStatus ?? null} mode="research" />
+            <StatusCard label="Build" color="green" status={buildStatus ?? null} mode="build" />
+            <StatusCard label="Presentation" color="indigo" status={presentationStatus ?? null} mode="presentation" />
           </div>
         </div>
       </div>

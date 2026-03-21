@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, FileText, Loader2, CheckCircle2, AlertCircle, Upload, RefreshCw } from 'lucide-react';
+import { X, FileText, Loader2, CheckCircle2, AlertCircle, Upload, RefreshCw, Download } from 'lucide-react';
+import DownloadButtons from './DownloadButtons';
 import { motion } from 'framer-motion';
 import { ProjectFile, PipelineStatus } from './types';
 import { useAuthFetch, API_BASE } from '@/hooks/use-auth-fetch';
@@ -27,10 +28,11 @@ function formatElapsed(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
-function StatusCard({ label, color, status }: {
+function StatusCard({ label, color, status, mode }: {
   label: string;
   color: 'terra' | 'green' | 'indigo';
   status: PipelineStatus | null;
+  mode: 'research' | 'build' | 'presentation';
 }) {
   const isRunning = status?.status === 'running';
   const isComplete = status?.status === 'complete';
@@ -38,6 +40,8 @@ function StatusCard({ label, color, status }: {
   const isQueued = status?.status === 'queued';
   const borderColor = isRunning
     ? (color === 'terra' ? 'border-l-primary' : color === 'indigo' ? 'border-l-stella-indigo' : 'border-l-stella-green')
+    : isComplete
+    ? 'border-l-stella-green'
     : 'border-l-transparent';
 
   // Live timer — counts up every second while running
@@ -65,6 +69,7 @@ function StatusCard({ label, color, status }: {
         </span>
         {isRunning && <Loader2 size={10} className={`animate-spin ${color === 'indigo' ? 'text-stella-indigo' : 'text-primary'}`} />}
         {isQueued && <span className="w-2 h-2 rounded-full bg-stella-text-dim animate-pulse" />}
+        {isComplete && <CheckCircle2 size={10} className="text-stella-green" />}
       </div>
 
       {!status || status.status === 'idle' ? (
@@ -103,14 +108,7 @@ function StatusCard({ label, color, status }: {
             </div>
           )}
           {isComplete && status.runId && (
-            <a
-              href={`${API_BASE}/api/report/${status.runId}`}
-              target="_blank"
-              rel="noreferrer"
-              className="block text-[11px] text-primary hover:underline mt-1"
-            >
-              View files →
-            </a>
+            <DownloadButtons runId={status.runId} mode={mode} />
           )}
         </div>
       )}
@@ -387,9 +385,9 @@ export default function RightSidebar({
       {/* Bottom half: Pipeline Status — always visible, not scrolled away */}
       <div className="flex-shrink-0 px-3 py-3 space-y-2">
         <div className="text-[11px] font-semibold text-stella-text-dim uppercase tracking-wider">Pipeline Status</div>
-        <StatusCard label="Research" color="terra" status={researchStatus} />
-        <StatusCard label="Build" color="green" status={buildStatus} />
-        <StatusCard label="Presentation" color="indigo" status={presentationStatus ?? null} />
+        <StatusCard label="Research" color="terra" status={researchStatus} mode="research" />
+        <StatusCard label="Build" color="green" status={buildStatus} mode="build" />
+        <StatusCard label="Presentation" color="indigo" status={presentationStatus ?? null} mode="presentation" />
       </div>
     </motion.div>
     </>
