@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Copy, Check, Volume2, VolumeX } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { Message } from './types';
 import ActionButtons from './ActionButtons';
 
@@ -114,62 +115,95 @@ function SpeakButton({ text }: { text: string }) {
   );
 }
 
-function renderContent(content: string): React.ReactNode {
-  const parts = content.split(/(```[\s\S]*?```|`[^`]+`)/g);
-
-  return parts.map((part, i) => {
-    // Multi-line code block
-    if (part.startsWith('```') && part.endsWith('```')) {
-      const lines = part.slice(3, -3).split('\n');
-      const lang = lines[0].trim();
-      const code = lang ? lines.slice(1).join('\n') : lines.join('\n');
-      return (
-        <div key={i} className="relative group/code my-3">
-          {lang && (
-            <div className="text-[10px] text-primary/70 px-3.5 pt-2.5 pb-0 bg-black/40 rounded-t-lg border border-b-0 border-stella-border">
-              {lang}
-            </div>
-          )}
-          <pre className={`overflow-x-auto text-[13px] leading-relaxed font-mono text-[#e2e8f0] px-3.5 py-3 bg-black/40 border border-stella-border ${lang ? 'rounded-b-lg border-t-0' : 'rounded-lg'}`}>
-            <code>{code}</code>
-          </pre>
-          <CopyButton text={code} />
-        </div>
-      );
-    }
-    // Inline code
-    if (part.startsWith('`') && part.endsWith('`')) {
-      return (
-        <code key={i} className="bg-primary/10 border border-primary/20 rounded px-1.5 py-0.5 text-[0.85em] font-mono text-primary">
-          {part.slice(1, -1)}
-        </code>
-      );
-    }
-    // Bold and italic
-    const processed = part.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((p, j) => {
-      if (p.startsWith('**') && p.endsWith('**')) {
-        return <strong key={j} className="text-foreground font-semibold">{p.slice(2, -2)}</strong>;
-      }
-      if (p.startsWith('*') && p.endsWith('*') && !p.startsWith('**')) {
-        return <em key={j} className="italic">{p.slice(1, -1)}</em>;
-      }
-      // Handle bullet points
-      const bulletLines = p.split('\n').map((line, li) => {
-        const trimmed = line.trimStart();
-        if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+function MarkdownContent({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      components={{
+        // Custom code blocks with copy button
+        pre({ children }) {
+          return <>{children}</>;
+        },
+        code({ className, children, ...props }) {
+          const match = /language-(\w+)/.exec(className || '');
+          const codeStr = String(children).replace(/\n$/, '');
+          // Block code (inside pre)
+          const isBlock = className || (codeStr.includes('\n'));
+          if (isBlock) {
+            const lang = match?.[1] || '';
+            return (
+              <div className="relative group/code my-3">
+                {lang && (
+                  <div className="text-[10px] text-primary/70 px-3.5 pt-2.5 pb-0 bg-black/40 rounded-t-lg border border-b-0 border-stella-border">
+                    {lang}
+                  </div>
+                )}
+                <pre className={`overflow-x-auto text-[13px] leading-relaxed font-mono text-[#e2e8f0] px-3.5 py-3 bg-black/40 border border-stella-border ${lang ? 'rounded-b-lg border-t-0' : 'rounded-lg'}`}>
+                  <code>{codeStr}</code>
+                </pre>
+                <CopyButton text={codeStr} />
+              </div>
+            );
+          }
+          // Inline code
           return (
-            <div key={li} className="flex gap-2 ml-1">
-              <span className="text-primary/60 mt-[2px] flex-shrink-0">•</span>
-              <span>{trimmed.slice(2)}</span>
-            </div>
+            <code className="bg-primary/10 border border-primary/20 rounded px-1.5 py-0.5 text-[0.85em] font-mono text-primary" {...props}>
+              {children}
+            </code>
           );
-        }
-        return line + (li < p.split('\n').length - 1 ? '\n' : '');
-      });
-      return <React.Fragment key={j}>{bulletLines}</React.Fragment>;
-    });
-    return <span key={i}>{processed}</span>;
-  });
+        },
+        // Styled headings
+        h1({ children }) {
+          return <h1 className="text-lg font-semibold text-foreground mt-4 mb-2">{children}</h1>;
+        },
+        h2({ children }) {
+          return <h2 className="text-base font-semibold text-foreground mt-3 mb-1.5">{children}</h2>;
+        },
+        h3({ children }) {
+          return <h3 className="text-[15px] font-semibold text-foreground mt-2 mb-1">{children}</h3>;
+        },
+        // Paragraphs
+        p({ children }) {
+          return <p className="mb-2 last:mb-0">{children}</p>;
+        },
+        // Lists
+        ul({ children }) {
+          return <ul className="mb-2 space-y-0.5 ml-1">{children}</ul>;
+        },
+        ol({ children }) {
+          return <ol className="mb-2 space-y-0.5 ml-1 list-decimal list-inside">{children}</ol>;
+        },
+        li({ children }) {
+          return (
+            <li className="flex gap-2">
+              <span className="text-primary/60 mt-[2px] flex-shrink-0">•</span>
+              <span className="flex-1">{children}</span>
+            </li>
+          );
+        },
+        // Bold and italic
+        strong({ children }) {
+          return <strong className="text-foreground font-semibold">{children}</strong>;
+        },
+        em({ children }) {
+          return <em className="italic">{children}</em>;
+        },
+        // Links
+        a({ href, children }) {
+          return <a href={href} target="_blank" rel="noreferrer" className="text-primary hover:underline">{children}</a>;
+        },
+        // Blockquotes
+        blockquote({ children }) {
+          return <blockquote className="border-l-2 border-primary/40 pl-3 my-2 text-stella-text-muted italic">{children}</blockquote>;
+        },
+        // Horizontal rule
+        hr() {
+          return <hr className="my-3 border-stella-border" />;
+        },
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
 }
 
 const stellaVariants = {
@@ -209,8 +243,8 @@ export default function MessageBubble({ message, onAction, isLatest = false }: M
 
         {/* Content — just text, no avatar, no name */}
         {message.content && (
-          <div className="text-[14px] sm:text-[15px] leading-[1.75] text-foreground tracking-[0.01em] whitespace-pre-wrap break-words">
-            {renderContent(message.content)}
+          <div className="text-[14px] sm:text-[15px] leading-[1.75] text-foreground tracking-[0.01em] break-words">
+            <MarkdownContent content={message.content} />
           </div>
         )}
 
