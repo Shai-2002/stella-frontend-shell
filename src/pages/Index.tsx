@@ -593,6 +593,9 @@ const Index = () => {
           onAction={handleAction}
           onDocumentUploaded={handleDocumentUploaded}
           onProjectUpdated={handleProjectUpdated}
+          researchStatus={researchStatus}
+          buildStatus={buildStatus}
+          presentationStatus={presentationStatus}
         />
       </div>
     );

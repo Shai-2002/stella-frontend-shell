@@ -1,10 +1,28 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ArrowLeft, Plus, FileText, Upload, ChevronRight, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Project, ProjectFile, Conversation, Message } from './types';
+import { Project, ProjectFile, Conversation, Message, PipelineStatus } from './types';
 import { useAuthFetch } from '@/hooks/use-auth-fetch';
 import ChatView from './ChatView';
 import Composer from './Composer';
+
+function PipelineStatusBar({ status, label }: { status: PipelineStatus | null; label: string }) {
+  if (!status || status.status === 'complete') return null;
+  const pct = status.totalStages > 0 ? Math.round((status.stage / status.totalStages) * 100) : 0;
+  return (
+    <div className="px-3 py-2 bg-stella-terra-dim border-b border-stella-border">
+      <div className="flex items-center gap-2 text-xs">
+        <Loader2 size={12} className={status.status === 'running' ? 'animate-spin text-primary' : 'text-destructive'} />
+        <span className="text-stella-text-muted font-medium">{label}</span>
+        <span className="text-stella-text-dim">{status.stageName}</span>
+        <span className="ml-auto text-stella-text-dim">{pct}%</span>
+      </div>
+      <div className="mt-1 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+        <div className={`h-full rounded-full transition-all duration-500 ${status.status === 'failed' ? 'bg-destructive' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
 
 const API = '/api';
 const POLL_INTERVAL = 3000; // 3 seconds
@@ -23,11 +41,15 @@ interface ProjectWorkspaceProps {
   onAction: (action: 'research' | 'build' | 'both' | 'go_ahead' | 'cancel') => void;
   onDocumentUploaded: (id: string, filename: string, msg: string) => void;
   onProjectUpdated: (project: Project) => void;
+  researchStatus?: PipelineStatus | null;
+  buildStatus?: PipelineStatus | null;
+  presentationStatus?: PipelineStatus | null;
 }
 
 export default function ProjectWorkspace({
   project, conversations, activeConversationId, messages, isThinking,
   onBack, onSelectConversation, onNewChatInProject, onSend, onAction, onDocumentUploaded, onProjectUpdated,
+  researchStatus, buildStatus, presentationStatus,
 }: ProjectWorkspaceProps) {
   const authFetch = useAuthFetch();
   const [files, setFiles] = useState<ProjectFile[]>([]);
@@ -222,6 +244,11 @@ export default function ProjectWorkspace({
 
       {/* Center: chat or project landing */}
       <div className="flex flex-col flex-1 min-w-0">
+        {/* Pipeline status bars */}
+        <PipelineStatusBar status={researchStatus ?? null} label="Research" />
+        <PipelineStatusBar status={buildStatus ?? null} label="Build" />
+        <PipelineStatusBar status={presentationStatus ?? null} label="Presentation" />
+
         {hasActiveConv ? (
           <>
             <ChatView messages={messages} onAction={onAction} isThinking={isThinking} />
