@@ -231,11 +231,15 @@ const Index = () => {
         content: m.content,
       }));
 
+      const controller = new AbortController();
+      const chatTimeout = setTimeout(() => controller.abort(), 45000); // 45s timeout
       const res = await fetchRef.current('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, history, conversation_id: convId || undefined }),
+        signal: controller.signal,
       });
+      clearTimeout(chatTimeout);
 
       const contentType = res.headers.get('Content-Type') || '';
 
@@ -314,11 +318,23 @@ const Index = () => {
           if (convId) saveMessageToDb(convId, 'stella', data.content, { intent: data.intent, action: data.action });
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('[handleSend] error:', err);
+      let errorContent: string;
+      if (!navigator.onLine) {
+        errorContent = "You're offline. Check your connection and try again.";
+      } else if (err?.name === 'AbortError' || err?.message?.includes('timeout')) {
+        errorContent = "Stella is taking too long to respond. Try sending your message again.";
+      } else if (err?.status === 500 || err?.message?.includes('500')) {
+        errorContent = "Something went wrong on Stella's end. Try again in a moment.";
+      } else if (err?.status === 409) {
+        errorContent = err?.message || "That file has already been uploaded.";
+      } else {
+        errorContent = "Couldn't reach Stella. Check your connection and try again.";
+      }
       setMessages((prev) => [...prev, {
         id: (Date.now() + 1).toString(), role: 'stella',
-        content: 'Something went wrong. Check the console.', timestamp: nowTimestamp(),
+        content: errorContent, timestamp: nowTimestamp(),
       }]);
     } finally {
       setIsThinking(false);
