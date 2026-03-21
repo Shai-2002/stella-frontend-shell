@@ -115,7 +115,16 @@ function SpeakButton({ text }: { text: string }) {
   );
 }
 
+/** Strip any XML-like pipeline/tool-call blocks the LLM might emit */
+function sanitizeContent(text: string): string {
+  return text
+    .replace(/<\/?(?:stella_run_pipeline|pipeline_type|user_request|priority|context|pipeline_trigger|tool_call|function_call|stella_action)[^>]*>/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function MarkdownContent({ content }: { content: string }) {
+  const clean = sanitizeContent(content);
   return (
     <ReactMarkdown
       components={{
@@ -201,7 +210,7 @@ function MarkdownContent({ content }: { content: string }) {
         },
       }}
     >
-      {content}
+      {clean}
     </ReactMarkdown>
   );
 }

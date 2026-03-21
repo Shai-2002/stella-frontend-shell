@@ -129,6 +129,20 @@ const Index = () => {
             setStatus(prev => prev ? { ...prev, status: 'failed', stageName: 'Failed' } : prev);
             es.close();
           }
+          // Two-step chain: research done, ask user to confirm build
+          if (data.type === 'chain_build_confirm') {
+            console.log(`[SSE] Chain build confirmation requested`);
+            const confirmMsg: Message = {
+              id: `chain-confirm-${Date.now()}`,
+              role: 'stella',
+              content: `Research is done! Here's a quick summary:\n\n${data.message || 'Key findings collected.'}\n\nWant me to start the **build pipeline** using these findings?`,
+              timestamp: nowTimestamp(),
+              showActions: true,
+              actionType: 'confirm',
+              pendingMode: 'build',
+            };
+            setMessages(prev => [...prev, confirmMsg]);
+          }
         } catch (err) {
           console.warn('[SSE] Parse error:', err);
         }
@@ -350,6 +364,10 @@ const Index = () => {
           setMessages((prev) => [...prev, stellaMsg]);
           if (convId) saveMessageToDb(convId, 'stella', data.content, { intent: data.intent, run_id: runId });
           trackPipelineRun(runId, mode as 'research' | 'build' | 'presentation', data.content?.slice(0, 60) || `${mode} run`);
+          // Two-step chain: show build as "Planned" (user will confirm after research)
+          if (data._chainPending) {
+            setBuildStatus({ runId: '', topic: data.content?.slice(0, 60) || 'Pending confirmation', stage: 0, totalStages: 8, stageName: 'Planned', status: 'queued' as any, elapsed: 0, cost: 0 });
+          }
         } else {
           const showActions = data.action === 'CONFIRM' || data.action === 'CLARIFY_MODE';
           // Determine action type: if server sent pendingPipeline, it's a specific-intent confirmation
@@ -484,7 +502,12 @@ const Index = () => {
       if (chainId) {
         trackPipelineRun(chainId, 'research', confirmMsg.content.slice(0, 60));
       } else if (runId) {
-        trackPipelineRun(runId, action === 'build' ? 'build' : 'research', confirmMsg.content.slice(0, 60));
+        const trackMode = data.intent === 'BUILD' ? 'build' : data.intent === 'PRESENTATION' ? 'presentation' : 'research';
+        trackPipelineRun(runId, trackMode as 'research' | 'build' | 'presentation', confirmMsg.content.slice(0, 60));
+        // Two-step chain: show build as "Planned" (user confirms after research)
+        if (data._chainPending) {
+          setBuildStatus({ runId: '', topic: confirmMsg.content.slice(0, 60), stage: 0, totalStages: 8, stageName: 'Planned', status: 'queued' as any, elapsed: 0, cost: 0 });
+        }
       }
     } catch (err) {
       console.error('[handleAction] error:', err);
