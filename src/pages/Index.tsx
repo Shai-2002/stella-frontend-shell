@@ -297,6 +297,8 @@ const Index = () => {
           if (convId) saveMessageToDb(convId, 'stella', data.content, { intent: data.intent, chain_id: chainId });
           // Track research phase of chain in sidebar
           trackPipelineRun(chainId, 'research', data.content?.slice(0, 60) || 'Sequential run');
+          // Show Build as "queued" during Research→Build chain
+          setBuildStatus({ runId: '', topic: data.content?.slice(0, 60) || 'Waiting', stage: 0, totalStages: 8, stageName: 'Queued', status: 'queued' as any, elapsed: 0, cost: 0 });
         } else if (runId) {
           // Pipeline status moved to RightSidebar — just show text message
           const mode = data.intent === 'BUILD' ? 'build' : data.intent === 'PRESENTATION' ? 'presentation' : 'research';

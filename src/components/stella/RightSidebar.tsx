@@ -35,9 +35,25 @@ function StatusCard({ label, color, status }: {
   const isRunning = status?.status === 'running';
   const isComplete = status?.status === 'complete';
   const isFailed = status?.status === 'failed';
+  const isQueued = status?.status === 'queued';
   const borderColor = isRunning
     ? (color === 'terra' ? 'border-l-primary' : color === 'indigo' ? 'border-l-stella-indigo' : 'border-l-stella-green')
     : 'border-l-transparent';
+
+  // Live timer — counts up every second while running
+  const [liveElapsed, setLiveElapsed] = useState(status?.elapsed ?? 0);
+  useEffect(() => {
+    if (!isRunning) {
+      setLiveElapsed(status?.elapsed ?? 0);
+      return;
+    }
+    // Sync with last known elapsed, then tick every second
+    setLiveElapsed(status?.elapsed ?? 0);
+    const interval = setInterval(() => {
+      setLiveElapsed(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isRunning, status?.elapsed, status?.stage]);
 
   return (
     <div className={`bg-stella-sidebar rounded-lg p-3 border-l-[3px] ${borderColor} transition-colors`}>
@@ -48,10 +64,13 @@ function StatusCard({ label, color, status }: {
           {label}
         </span>
         {isRunning && <Loader2 size={10} className={`animate-spin ${color === 'indigo' ? 'text-stella-indigo' : 'text-primary'}`} />}
+        {isQueued && <span className="w-2 h-2 rounded-full bg-stella-text-dim animate-pulse" />}
       </div>
 
       {!status || status.status === 'idle' ? (
         <p className="text-[11px] text-stella-text-faint">Currently idle</p>
+      ) : isQueued ? (
+        <p className="text-[11px] text-stella-text-dim animate-pulse">Queued — waiting for research to complete</p>
       ) : (
         <div className="space-y-1">
           <div className="flex justify-between text-[11px]">
@@ -75,7 +94,7 @@ function StatusCard({ label, color, status }: {
           </div>
           <div className="flex justify-between text-[11px]">
             <span className="text-stella-text-dim">Time</span>
-            <span className="text-foreground font-mono">{formatElapsed(status.elapsed)}</span>
+            <span className="text-foreground font-mono">{formatElapsed(isRunning ? liveElapsed : status.elapsed)}</span>
           </div>
           {status.cost > 0 && (
             <div className="flex justify-between text-[11px]">
@@ -182,8 +201,11 @@ export default function RightSidebar({
     return () => { if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; } };
   }, [isOpen, projectId, authFetch, refreshFileStatuses, startPolling]);
 
+  const [uploadNotice, setUploadNotice] = useState<{ type: 'info' | 'error'; message: string } | null>(null);
+
   const uploadFile = async (file: File) => {
     setIsUploading(true);
+    setUploadNotice(null);
     const formData = new FormData();
     formData.append('file', file);
     try {
@@ -199,13 +221,23 @@ export default function RightSidebar({
         }
         const newFile: ProjectFile = {
           id: data.documentId, original_name: file.name,
-          file_type: file.name.split('.').pop() ?? '', status: 'processing',
+          file_type: file.name.split('.').pop() ?? '', status: data.isRetry ? 'processing' : 'processing',
           scope: projectId ? 'project' : 'chat', uploaded_at: new Date().toISOString(),
         };
         setFiles(prev => { const next = [newFile, ...prev]; startPolling(next); return next; });
         if (onFileUploaded) onFileUploaded(data.documentId, data.filename || file.name, data.message || '');
       }
-    } catch (err) { console.error('File upload failed', err); }
+    } catch (err: any) {
+      // Handle 409 duplicate gracefully
+      if (err?.message?.includes('409') || err?.status === 409) {
+        setUploadNotice({ type: 'info', message: 'This file has already been uploaded and is ready to use.' });
+        setTimeout(() => setUploadNotice(null), 5000);
+      } else {
+        setUploadNotice({ type: 'error', message: 'Upload failed. Please try again.' });
+        setTimeout(() => setUploadNotice(null), 5000);
+      }
+      console.error('File upload failed', err);
+    }
     finally { setIsUploading(false); }
   };
 
@@ -272,7 +304,23 @@ export default function RightSidebar({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
+      {/* Upload notice banner — auto-dismisses after 5s */}
+      {uploadNotice && (
+        <div className={`mx-3 mt-2 px-3 py-2 rounded-lg text-[12px] flex items-center gap-2 animate-in fade-in duration-200 ${
+          uploadNotice.type === 'info'
+            ? 'bg-stella-green/10 text-stella-green border border-stella-green/20'
+            : 'bg-destructive/10 text-destructive border border-destructive/20'
+        }`}>
+          {uploadNotice.type === 'info' ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
+          {uploadNotice.message}
+          <button onClick={() => setUploadNotice(null)} className="ml-auto opacity-60 hover:opacity-100">
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
+      {/* Top half: Files — scrollable */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3 border-b border-stella-border">
         {/* Project info (if in project) */}
         {projectName && projectInstructions && (
           <div className="mb-1">
@@ -285,11 +333,11 @@ export default function RightSidebar({
           onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
           onDragLeave={() => setIsDragOver(false)}
           onDrop={handleDrop}
-          className={`rounded-lg border-2 border-dashed p-4 text-center transition-colors ${
+          className={`rounded-lg border-2 border-dashed p-3 text-center transition-colors ${
             isDragOver ? 'border-primary bg-stella-terra-dim' : 'border-stella-border'
           }`}
         >
-          <Upload size={16} className={`mx-auto mb-1.5 ${isDragOver ? 'text-primary' : 'text-stella-text-faint'}`} />
+          <Upload size={14} className={`mx-auto mb-1 ${isDragOver ? 'text-primary' : 'text-stella-text-faint'}`} />
           <p className={`text-[11px] ${isDragOver ? 'text-primary' : 'text-stella-text-dim'}`}>
             {isDragOver ? 'Drop file here' : 'Drag file here or click upload'}
           </p>
@@ -334,14 +382,14 @@ export default function RightSidebar({
             </div>
           ))}
         </div>
+      </div>
 
-        {/* Pipeline Status */}
-        <div className="space-y-2">
-          <div className="text-[11px] font-semibold text-stella-text-dim uppercase tracking-wider">Pipeline Status</div>
-          <StatusCard label="Research" color="terra" status={researchStatus} />
-          <StatusCard label="Build" color="green" status={buildStatus} />
-          <StatusCard label="Presentation" color="indigo" status={presentationStatus ?? null} />
-        </div>
+      {/* Bottom half: Pipeline Status — always visible, not scrolled away */}
+      <div className="flex-shrink-0 px-3 py-3 space-y-2">
+        <div className="text-[11px] font-semibold text-stella-text-dim uppercase tracking-wider">Pipeline Status</div>
+        <StatusCard label="Research" color="terra" status={researchStatus} />
+        <StatusCard label="Build" color="green" status={buildStatus} />
+        <StatusCard label="Presentation" color="indigo" status={presentationStatus ?? null} />
       </div>
     </motion.div>
     </>

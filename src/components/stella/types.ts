@@ -79,7 +79,7 @@ export interface PipelineStatus {
   stage: number;
   totalStages: number;
   stageName: string;
-  status: 'running' | 'complete' | 'failed' | 'idle';
+  status: 'running' | 'complete' | 'failed' | 'idle' | 'queued';
   elapsed: number;
   cost: number;
 }
