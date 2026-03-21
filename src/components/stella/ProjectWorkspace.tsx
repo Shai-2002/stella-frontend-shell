@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Plus, FileText, Upload, ChevronRight, Loader2, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Plus, FileText, Upload, ChevronRight, Loader2, CheckCircle2, AlertCircle, ExternalLink, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Project, ProjectFile, Conversation, Message, PipelineStatus } from './types';
 import { useAuthFetch, API_BASE } from '@/hooks/use-auth-fetch';
@@ -120,6 +120,7 @@ interface ProjectWorkspaceProps {
   onAction: (action: 'research' | 'build' | 'both' | 'go_ahead' | 'cancel') => void;
   onDocumentUploaded: (id: string, filename: string, msg: string) => void;
   onProjectUpdated: (project: Project) => void;
+  onDeleteConversation?: (id: string) => void;
   researchStatus?: PipelineStatus | null;
   buildStatus?: PipelineStatus | null;
   presentationStatus?: PipelineStatus | null;
@@ -128,7 +129,7 @@ interface ProjectWorkspaceProps {
 export default function ProjectWorkspace({
   project, conversations, activeConversationId, messages, isThinking,
   onBack, onSelectConversation, onNewChatInProject, onSend, onAction, onDocumentUploaded, onProjectUpdated,
-  researchStatus, buildStatus, presentationStatus,
+  onDeleteConversation, researchStatus, buildStatus, presentationStatus,
 }: ProjectWorkspaceProps) {
   const authFetch = useAuthFetch();
   const [files, setFiles] = useState<ProjectFile[]>([]);
@@ -308,14 +309,25 @@ export default function ProjectWorkspace({
           {projectConvs.map(conv => {
             const isActive = conv.id === activeConversationId;
             return (
-              <button key={conv.id} onClick={() => onSelectConversation(conv.id)}
-                className={`block w-full text-left px-2.5 py-2 rounded-lg mb-0.5 transition-colors ${
-                  isActive ? 'bg-stella-terra-dim' : 'hover:bg-white/[0.04]'
-                }`}>
-                <div className={`text-[13px] truncate ${isActive ? 'text-foreground font-medium' : 'text-stella-text-muted'}`}>
-                  {conv.title}
-                </div>
-              </button>
+              <div key={conv.id} className="relative group flex items-center mb-0.5">
+                <button onClick={() => onSelectConversation(conv.id)}
+                  className={`block w-full text-left px-2.5 py-2 rounded-lg transition-colors pr-8 ${
+                    isActive ? 'bg-stella-terra-dim' : 'hover:bg-white/[0.04]'
+                  }`}>
+                  <div className={`text-[13px] truncate ${isActive ? 'text-foreground font-medium' : 'text-stella-text-muted'}`}>
+                    {conv.title}
+                  </div>
+                </button>
+                {onDeleteConversation && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDeleteConversation(conv.id); }}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover:opacity-100 text-stella-text-dim hover:text-destructive hover:bg-destructive/10 transition-all"
+                    title="Delete conversation"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>

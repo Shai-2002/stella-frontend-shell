@@ -104,6 +104,7 @@ const Index = () => {
             setStatus(prev => prev ? {
               ...prev,
               stage: (data.stage_index ?? prev.stage + 1),
+              totalStages: data.total_stages ?? prev.totalStages,
               stageName: data.stage || data.message || prev.stageName,
               elapsed: data.elapsed ?? prev.elapsed,
               cost: data.cost ?? prev.cost,
@@ -654,6 +655,7 @@ const Index = () => {
           onAction={handleAction}
           onDocumentUploaded={handleDocumentUploaded}
           onProjectUpdated={handleProjectUpdated}
+          onDeleteConversation={handleDeleteConversation}
           researchStatus={researchStatus}
           buildStatus={buildStatus}
           presentationStatus={presentationStatus}
