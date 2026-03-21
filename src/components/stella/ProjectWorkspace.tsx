@@ -1,10 +1,89 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Plus, FileText, Upload, ChevronRight, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Plus, FileText, Upload, ChevronRight, Loader2, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Project, ProjectFile, Conversation, Message, PipelineStatus } from './types';
-import { useAuthFetch } from '@/hooks/use-auth-fetch';
+import { useAuthFetch, API_BASE } from '@/hooks/use-auth-fetch';
 import ChatView from './ChatView';
 import Composer from './Composer';
+
+function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}m ${s}s`;
+}
+
+function StatusCard({ label, color, status }: {
+  label: string;
+  color: 'terra' | 'green' | 'indigo';
+  status: PipelineStatus | null;
+}) {
+  const isRunning = status?.status === 'running';
+  const isComplete = status?.status === 'complete';
+  const isFailed = status?.status === 'failed';
+  const borderColor = isRunning
+    ? (color === 'terra' ? 'border-l-primary' : color === 'indigo' ? 'border-l-stella-indigo' : 'border-l-stella-green')
+    : 'border-l-transparent';
+
+  return (
+    <div className={`bg-white/[0.03] rounded-lg p-3 border-l-[3px] ${borderColor} transition-colors`}>
+      <div className="flex items-center gap-2 mb-2">
+        <span className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded ${
+          color === 'terra' ? 'bg-stella-terra-dim text-primary' : color === 'indigo' ? 'bg-stella-indigo/10 text-stella-indigo' : 'bg-stella-green-dim text-stella-green'
+        }`}>
+          {label}
+        </span>
+        {isRunning && <Loader2 size={10} className={`animate-spin ${color === 'indigo' ? 'text-stella-indigo' : 'text-primary'}`} />}
+      </div>
+
+      {!status || status.status === 'idle' ? (
+        <p className="text-[11px] text-stella-text-faint">Currently idle</p>
+      ) : (
+        <div className="space-y-1">
+          <div className="flex justify-between text-[11px]">
+            <span className="text-stella-text-dim">Topic</span>
+            <span className="text-foreground truncate ml-2 max-w-[140px]">{status.topic}</span>
+          </div>
+          <div className="flex justify-between text-[11px]">
+            <span className="text-stella-text-dim">Stage</span>
+            <span className="text-foreground">{status.stageName} ({status.stage}/{status.totalStages})</span>
+          </div>
+          <div className="flex justify-between text-[11px]">
+            <span className="text-stella-text-dim">Status</span>
+            <span className={
+              isRunning ? 'text-primary' :
+              isComplete ? 'text-stella-green' :
+              isFailed ? 'text-destructive' :
+              'text-stella-text-muted'
+            }>
+              {isRunning ? 'Running' : isComplete ? 'Complete' : isFailed ? 'Failed' : status.status}
+            </span>
+          </div>
+          <div className="flex justify-between text-[11px]">
+            <span className="text-stella-text-dim">Time</span>
+            <span className="text-foreground font-mono">{formatElapsed(status.elapsed)}</span>
+          </div>
+          {status.cost > 0 && (
+            <div className="flex justify-between text-[11px]">
+              <span className="text-stella-text-dim">Cost</span>
+              <span className="text-foreground font-mono">${status.cost.toFixed(4)}</span>
+            </div>
+          )}
+          {isComplete && status.runId && (
+            <a
+              href={`${API_BASE}/api/report/${status.runId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="block text-[11px] text-primary hover:underline mt-1"
+            >
+              View files →
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function PipelineStatusBar({ status, label }: { status: PipelineStatus | null; label: string }) {
   if (!status || status.status === 'complete') return null;
@@ -352,6 +431,16 @@ export default function ProjectWorkspace({
               </button>
             </div>
           ))}
+        </div>
+
+        {/* Pipeline Status */}
+        <div className="mt-5">
+          <div className="text-[11px] font-semibold text-stella-text-dim uppercase tracking-wider mb-2">Pipelines</div>
+          <div className="space-y-2">
+            <StatusCard label="Research" color="terra" status={researchStatus ?? null} />
+            <StatusCard label="Build" color="green" status={buildStatus ?? null} />
+            <StatusCard label="Presentation" color="indigo" status={presentationStatus ?? null} />
+          </div>
         </div>
       </div>
     </div>
