@@ -140,7 +140,8 @@ export default function ConversationHistory({
         </button>
         <button
           onClick={e => { e.stopPropagation(); setMenuOpen(menuOpen === conv.id ? null : conv.id); }}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-stella-text-dim opacity-0 group-hover/conv:opacity-100 hover:bg-white/5 transition-all"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-stella-text-faint hover:text-stella-text-muted hover:bg-white/10 transition-all"
+          title="More options"
         >
           <MoreHorizontal size={14} />
         </button>

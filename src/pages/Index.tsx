@@ -75,37 +75,79 @@ const Index = () => {
     setStatus({ runId, topic, stage: 0, totalStages, stageName: 'Starting', status: 'running', elapsed: 0, cost: 0 });
     setIsFilesPanelOpen(true); // auto-open sidebar
 
-    const es = new EventSource(apiUrl(`/api/run/${runId}/stream`));
-    es.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'stage_complete') {
-          setStatus(prev => prev ? {
-            ...prev,
-            stage: (data.stage_index ?? prev.stage + 1),
-            stageName: data.stage || data.message || prev.stageName,
-            elapsed: data.elapsed ?? prev.elapsed,
-            cost: data.cost ?? prev.cost,
-          } : prev);
+    console.log(`[trackPipelineRun] ${mode} run ${runId.slice(0, 8)} — connecting SSE`);
+
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+    let isClosed = false; // true when run is complete/failed — no more retries
+
+    function connectSSE() {
+      const url = apiUrl(`/api/run/${runId}/stream`);
+      console.log(`[SSE] Connecting to ${url} (attempt ${retryCount + 1})`);
+      const es = new EventSource(url);
+
+      es.onopen = () => {
+        console.log(`[SSE] Connected for ${mode} run ${runId.slice(0, 8)}`);
+        retryCount = 0; // reset on successful connect
+      };
+
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          // Skip heartbeat/connected events
+          if (data.type === 'connected') {
+            console.log(`[SSE] Server confirmed connection for ${runId.slice(0, 8)}`);
+            return;
+          }
+          if (data.type === 'stage_complete') {
+            console.log(`[SSE] Stage ${data.stage_index}/${data.total_stages}: ${data.stage || data.message}`);
+            setStatus(prev => prev ? {
+              ...prev,
+              stage: (data.stage_index ?? prev.stage + 1),
+              stageName: data.stage || data.message || prev.stageName,
+              elapsed: data.elapsed ?? prev.elapsed,
+              cost: data.cost ?? prev.cost,
+            } : prev);
+          }
+          if (data.type === 'run_complete') {
+            console.log(`[SSE] Run complete: ${runId.slice(0, 8)}`);
+            isClosed = true;
+            setStatus(prev => prev ? {
+              ...prev,
+              status: 'complete',
+              stage: prev.totalStages,
+              stageName: 'Complete',
+              elapsed: data.elapsed ?? prev.elapsed,
+              cost: data.cost ?? prev.cost,
+            } : prev);
+            es.close();
+          }
+          if (data.type === 'run_failed') {
+            console.log(`[SSE] Run failed: ${runId.slice(0, 8)}`);
+            isClosed = true;
+            setStatus(prev => prev ? { ...prev, status: 'failed', stageName: 'Failed' } : prev);
+            es.close();
+          }
+        } catch (err) {
+          console.warn('[SSE] Parse error:', err);
         }
-        if (data.type === 'run_complete') {
-          setStatus(prev => prev ? {
-            ...prev,
-            status: 'complete',
-            stage: prev.totalStages,
-            stageName: 'Complete',
-            elapsed: data.elapsed ?? prev.elapsed,
-            cost: data.cost ?? prev.cost,
-          } : prev);
-          es.close();
+      };
+
+      es.onerror = () => {
+        es.close();
+        if (isClosed) return; // run already finished, no retry needed
+        retryCount++;
+        if (retryCount <= MAX_RETRIES) {
+          const delay = Math.min(2000 * retryCount, 8000);
+          console.warn(`[SSE] Connection lost for ${runId.slice(0, 8)}, retrying in ${delay}ms (${retryCount}/${MAX_RETRIES})`);
+          setTimeout(connectSSE, delay);
+        } else {
+          console.error(`[SSE] Max retries exceeded for ${runId.slice(0, 8)}`);
         }
-        if (data.type === 'run_failed') {
-          setStatus(prev => prev ? { ...prev, status: 'failed', stageName: 'Failed' } : prev);
-          es.close();
-        }
-      } catch {}
-    };
-    es.onerror = () => es.close();
+      };
+    }
+
+    connectSSE();
   }, []);
 
   async function saveMessageToDb(convId: string, role: string, content: string, metadata?: Record<string, unknown>) {
@@ -289,6 +331,7 @@ const Index = () => {
         const data = await res.json();
         const runId = data.run_id || data.runId;
         const chainId = data.chain_id;
+        console.log(`[handleSend] JSON response — intent: ${data.intent}, action: ${data.action}, run_id: ${runId || 'none'}, chain_id: ${chainId || 'none'}`);
 
         if (chainId) {
           // Pipeline status moved to RightSidebar — just show text message
