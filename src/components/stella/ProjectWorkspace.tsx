@@ -16,16 +16,16 @@ function formatElapsed(seconds: number): string {
 
 function StatusCard({ label, color, status, mode }: {
   label: string;
-  color: 'terra' | 'green' | 'indigo';
+  color: 'terra' | 'green' | 'indigo' | 'amber';
   status: PipelineStatus | null;
-  mode: 'research' | 'build' | 'presentation';
+  mode: 'research' | 'build' | 'presentation' | 'boardroom';
 }) {
   const isRunning = status?.status === 'running';
   const isComplete = status?.status === 'complete';
   const isFailed = status?.status === 'failed';
   const isQueued = status?.status === 'queued';
   const borderColor = isRunning
-    ? (color === 'terra' ? 'border-l-primary' : color === 'indigo' ? 'border-l-stella-indigo' : 'border-l-stella-green')
+    ? (color === 'terra' ? 'border-l-primary' : color === 'indigo' ? 'border-l-stella-indigo' : color === 'amber' ? 'border-l-amber-400' : 'border-l-stella-green')
     : isComplete
     ? 'border-l-stella-green'
     : 'border-l-transparent';
@@ -34,11 +34,18 @@ function StatusCard({ label, color, status, mode }: {
     <div className={`bg-white/[0.03] rounded-lg p-3 border-l-[3px] ${borderColor} transition-colors`}>
       <div className="flex items-center gap-2 mb-2">
         <span className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded ${
-          color === 'terra' ? 'bg-stella-terra-dim text-primary' : color === 'indigo' ? 'bg-stella-indigo/10 text-stella-indigo' : 'bg-stella-green-dim text-stella-green'
+          color === 'terra' ? 'bg-stella-terra-dim text-primary' :
+          color === 'indigo' ? 'bg-stella-indigo/10 text-stella-indigo' :
+          color === 'amber' ? 'bg-amber-500/10 text-amber-400' :
+          'bg-stella-green-dim text-stella-green'
         }`}>
           {label}
         </span>
-        {isRunning && <Loader2 size={10} className={`animate-spin ${color === 'indigo' ? 'text-stella-indigo' : 'text-primary'}`} />}
+        {isRunning && <Loader2 size={10} className={`animate-spin ${
+          color === 'indigo' ? 'text-stella-indigo' :
+          color === 'amber' ? 'text-amber-400' :
+          'text-primary'
+        }`} />}
         {isQueued && <span className="w-2 h-2 rounded-full bg-stella-text-dim animate-pulse" />}
         {isComplete && <CheckCircle2 size={10} className="text-stella-green" />}
       </div>
@@ -126,12 +133,13 @@ interface ProjectWorkspaceProps {
   researchStatus?: PipelineStatus | null;
   buildStatus?: PipelineStatus | null;
   presentationStatus?: PipelineStatus | null;
+  boardroomStatus?: PipelineStatus | null;
 }
 
 export default function ProjectWorkspace({
   project, conversations, activeConversationId, messages, isThinking,
   onBack, onSelectConversation, onNewChatInProject, onSend, onAction, onDocumentUploaded, onProjectUpdated,
-  onDeleteConversation, researchStatus, buildStatus, presentationStatus,
+  onDeleteConversation, researchStatus, buildStatus, presentationStatus, boardroomStatus,
 }: ProjectWorkspaceProps) {
   const authFetch = useAuthFetch();
   const [files, setFiles] = useState<ProjectFile[]>([]);
@@ -454,6 +462,7 @@ export default function ProjectWorkspace({
             <StatusCard label="Research" color="terra" status={researchStatus ?? null} mode="research" />
             <StatusCard label="Build" color="green" status={buildStatus ?? null} mode="build" />
             <StatusCard label="Presentation" color="indigo" status={presentationStatus ?? null} mode="presentation" />
+            <StatusCard label="Boardroom" color="amber" status={boardroomStatus ?? null} mode="boardroom" />
           </div>
         </div>
       </div>

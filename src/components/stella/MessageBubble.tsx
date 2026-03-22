@@ -115,12 +115,22 @@ function SpeakButton({ text }: { text: string }) {
   );
 }
 
-/** Strip any XML-like pipeline/tool-call blocks the LLM might emit */
+/** Strip any XML-like non-HTML blocks the LLM might emit */
+const ALLOWED_HTML = new Set([
+  'p','br','b','i','em','strong','a','ul','ol','li','h1','h2','h3','h4','h5','h6',
+  'code','pre','blockquote','hr','img','table','thead','tbody','tr','th','td',
+  'span','div','sup','sub','del','s','u','mark','small','details','summary',
+]);
 function sanitizeContent(text: string): string {
-  return text
-    .replace(/<\/?(?:stella_run_pipeline|pipeline_type|user_request|priority|context|pipeline_trigger|tool_call|function_call|stella_action)[^>]*>/gi, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  // Strip paired non-HTML XML blocks: <tag>...</tag>
+  let result = text.replace(/<([a-zA-Z_][a-zA-Z0-9_-]*)[^>]*>[\s\S]*?<\/\1>/gi, (m, tag) =>
+    ALLOWED_HTML.has(tag.toLowerCase()) ? m : ''
+  );
+  // Strip stray non-HTML tags
+  result = result.replace(/<\/?([a-zA-Z_][a-zA-Z0-9_-]*)[^>]*>/gi, (m, tag) =>
+    ALLOWED_HTML.has(tag.toLowerCase()) ? m : ''
+  );
+  return result.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function MarkdownContent({ content }: { content: string }) {

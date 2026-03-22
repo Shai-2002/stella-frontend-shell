@@ -55,6 +55,7 @@ const Index = () => {
   const [researchStatus, setResearchStatus] = useState<PipelineStatus | null>(null);
   const [buildStatus, setBuildStatus] = useState<PipelineStatus | null>(null);
   const [presentationStatus, setPresentationStatus] = useState<PipelineStatus | null>(null);
+  const [boardroomStatus, setBoardroomStatus] = useState<PipelineStatus | null>(null);
   const isFirstUserMsg = useRef(true);
   const activeConvRef = useRef<string | null>(null);
   // Store authFetch in a ref so helper functions can access it
@@ -69,9 +70,9 @@ const Index = () => {
   }, [activeConversationId]);
 
   // Connect to pipeline SSE and track status in sidebar
-  const trackPipelineRun = useCallback((runId: string, mode: 'research' | 'build' | 'presentation', topic: string) => {
-    const totalStages = mode === 'presentation' ? 4 : 8;
-    const setStatus = mode === 'research' ? setResearchStatus : mode === 'build' ? setBuildStatus : setPresentationStatus;
+  const trackPipelineRun = useCallback((runId: string, mode: 'research' | 'build' | 'presentation' | 'boardroom', topic: string) => {
+    const totalStages = mode === 'presentation' ? 4 : mode === 'boardroom' ? 5 : 8;
+    const setStatus = mode === 'research' ? setResearchStatus : mode === 'build' ? setBuildStatus : mode === 'boardroom' ? setBoardroomStatus : setPresentationStatus;
     setStatus({ runId, topic, stage: 0, totalStages, stageName: 'Starting', status: 'running', elapsed: 0, cost: 0 });
     setIsFilesPanelOpen(true); // auto-open sidebar
 
@@ -359,11 +360,11 @@ const Index = () => {
           setBuildStatus({ runId: '', topic: data.content?.slice(0, 60) || 'Waiting', stage: 0, totalStages: 8, stageName: 'Queued', status: 'queued' as any, elapsed: 0, cost: 0 });
         } else if (runId) {
           // Pipeline status moved to RightSidebar — just show text message
-          const mode = data.intent === 'BUILD' ? 'build' : data.intent === 'PRESENTATION' ? 'presentation' : 'research';
+          const mode = data.intent === 'BUILD' ? 'build' : data.intent === 'PRESENTATION' ? 'presentation' : data.intent === 'BOARDROOM' ? 'boardroom' : 'research';
           const stellaMsg: Message = { id: (Date.now() + 1).toString(), role: 'stella', content: data.content, timestamp: nowTimestamp() };
           setMessages((prev) => [...prev, stellaMsg]);
           if (convId) saveMessageToDb(convId, 'stella', data.content, { intent: data.intent, run_id: runId });
-          trackPipelineRun(runId, mode as 'research' | 'build' | 'presentation', data.content?.slice(0, 60) || `${mode} run`);
+          trackPipelineRun(runId, mode as 'research' | 'build' | 'presentation' | 'boardroom', data.content?.slice(0, 60) || `${mode} run`);
           // Two-step chain: show build as "Planned" (user will confirm after research)
           if (data._chainPending) {
             setBuildStatus({ runId: '', topic: data.content?.slice(0, 60) || 'Pending confirmation', stage: 0, totalStages: 8, stageName: 'Planned', status: 'queued' as any, elapsed: 0, cost: 0 });
@@ -373,7 +374,7 @@ const Index = () => {
           // Determine action type: if server sent pendingPipeline, it's a specific-intent confirmation
           const hasPending = !!data.pendingPipeline;
           const actionType: 'clarify' | 'confirm' = hasPending ? 'confirm' : 'clarify';
-          const pendingMode = data.pendingPipeline?.mode as 'research' | 'build' | 'presentation' | undefined;
+          const pendingMode = data.pendingPipeline?.mode as 'research' | 'build' | 'presentation' | 'boardroom' | undefined;
           const stellaMsg: Message = {
             id: (Date.now() + 1).toString(), role: 'stella', content: data.content, timestamp: nowTimestamp(),
             showActions, actionType, pendingMode,
@@ -444,7 +445,7 @@ const Index = () => {
       // Find pending mode from the most recent message with pendingMode
       const pendingMsg = [...messages].reverse().find(m => m.pendingMode);
       const pendingMode = pendingMsg?.pendingMode || 'research';
-      const intentMap: Record<string, string> = { research: 'RESEARCH', build: 'BUILD', presentation: 'PRESENTATION' };
+      const intentMap: Record<string, string> = { research: 'RESEARCH', build: 'BUILD', presentation: 'PRESENTATION', boardroom: 'BOARDROOM' };
 
       try {
         const res = await fetchRef.current('/api/chat', {
@@ -468,8 +469,8 @@ const Index = () => {
         if (chainId) {
           trackPipelineRun(chainId, 'research', confirmMsg.content.slice(0, 60));
         } else if (runId) {
-          const trackMode = pendingMode === 'build' ? 'build' : pendingMode === 'presentation' ? 'presentation' : 'research';
-          trackPipelineRun(runId, trackMode, confirmMsg.content.slice(0, 60));
+          const trackMode = pendingMode === 'build' ? 'build' : pendingMode === 'presentation' ? 'presentation' : pendingMode === 'boardroom' ? 'boardroom' : 'research';
+          trackPipelineRun(runId, trackMode as any, confirmMsg.content.slice(0, 60));
         }
       } catch (err) {
         console.error('[handleAction] error:', err);
@@ -502,8 +503,8 @@ const Index = () => {
       if (chainId) {
         trackPipelineRun(chainId, 'research', confirmMsg.content.slice(0, 60));
       } else if (runId) {
-        const trackMode = data.intent === 'BUILD' ? 'build' : data.intent === 'PRESENTATION' ? 'presentation' : 'research';
-        trackPipelineRun(runId, trackMode as 'research' | 'build' | 'presentation', confirmMsg.content.slice(0, 60));
+        const trackMode = data.intent === 'BUILD' ? 'build' : data.intent === 'PRESENTATION' ? 'presentation' : data.intent === 'BOARDROOM' ? 'boardroom' : 'research';
+        trackPipelineRun(runId, trackMode as any, confirmMsg.content.slice(0, 60));
         // Two-step chain: show build as "Planned" (user confirms after research)
         if (data._chainPending) {
           setBuildStatus({ runId: '', topic: confirmMsg.content.slice(0, 60), stage: 0, totalStages: 8, stageName: 'Planned', status: 'queued' as any, elapsed: 0, cost: 0 });
@@ -682,6 +683,7 @@ const Index = () => {
           researchStatus={researchStatus}
           buildStatus={buildStatus}
           presentationStatus={presentationStatus}
+          boardroomStatus={boardroomStatus}
         />
       </div>
     );
@@ -775,6 +777,7 @@ const Index = () => {
             researchStatus={researchStatus}
             buildStatus={buildStatus}
             presentationStatus={presentationStatus}
+            boardroomStatus={boardroomStatus}
             onFileUploaded={handleDocumentUploaded}
           />
         )}
